@@ -1,103 +1,61 @@
-<div align="center">
-  <h1>🩸 RoktoDut (রক্তদূত)</h1>
-  <p><strong>A privacy-first, automation-driven platform that connects patients with verified blood donors in minutes.</strong></p>
-  <p>
-    <img src="https://img.shields.io/badge/Laravel-12.x-FF2D20?style=for-the-badge&logo=laravel&logoColor=white" alt="Laravel" />
-    <img src="https://img.shields.io/badge/Tailwind_CSS-3.x-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind CSS" />
-    <img src="https://img.shields.io/badge/Alpine.js-3.x-8BC0D0?style=for-the-badge&logo=alpine.js&logoColor=white" alt="Alpine JS" />
-    <img src="https://img.shields.io/badge/MySQL-8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white" alt="MySQL" />
-    <img src="https://img.shields.io/badge/Leaflet-1.9-199900?style=for-the-badge&logo=leaflet&logoColor=white" alt="Leaflet" />
-  </p>
-</div>
+# RoktoDut (রক্তদূত)
 
----
+RoktoDut is a Laravel-based blood-donor discovery platform for Bangladesh. It combines emergency request workflows, donor verification, privacy controls, notifications, maps, and an optional ML service.
 
-## 🚀 Overview
-RoktoDut is a full-stack, production-grade blood donor discovery system built for Bangladesh. It prioritizes **speed in emergencies**, **trust in identities**, and **privacy in contact sharing** through automation, verification, and real-time analytics.
+> **Project status:** The repository contains an actively developed application and local development workflows. A public demo URL and production deployment status are not specified in the repository.
 
-## ✨ Why it stands out
-- **No-login emergency search** with smart ranking to surface reliable donors first.
-- **Privacy shield** that hides phone numbers until a human verification step passes.
-- **Truth Loop verification** to confirm donations without manual follow-up.
-- **Live demand heatmap** across all districts for supply-vs-demand visibility.
-- **QR Smart Card verification** for NID-verified donors with controlled disclosure.
+## Problem statement
 
-## 🧩 Core Features
-- **Donor discovery & smart ranking**: availability, verification tier, and reliability scoring.
-- **Emergency request flow**: public blood requests with response tracking and urgency sorting.
-- **Donation verification**: claim → recipient confirmation → automated cooldown.
-- **Gamification**: points, badges, and national leaderboards to drive retention.
-- **Organization panel**: hospitals/blood clubs can verify and manage members.
-- **Content platform**: health blogs and verified success stories.
-- **PWA + FCM**: offline fallback and push notifications for critical alerts.
-- **Real-time & automation**: queues, scheduled jobs, and alerts via Telegram.
+During an emergency, patients and hospitals need to find suitable donors quickly without exposing donor contact details indiscriminately. RoktoDut is designed to rank available donors, coordinate requests, and confirm donation activity while limiting disclosure.
 
-## 🏗️ Architecture
-| Layer | Tech |
-|---|---|
-| Backend | Laravel 12, PHP 8.2, MySQL, Redis, Sanctum, Reverb |
-| Frontend | Blade, Tailwind CSS, Alpine.js, Vite |
-| Maps & Analytics | Leaflet, GeoJSON, custom spatial analytics |
-| Notifications | Firebase (FCM), Telegram Bot |
-| ML Service | FastAPI + scikit-learn (donor ranking) + Groq (NLP request parsing) |
+## Features and analysis scope
 
-## 🔐 Privacy & Safety by Design
-- Phone numbers are **masked by default** and only revealed after a challenge + rate limit.
-- **QR tokens are opaque** and cannot be enumerated from user IDs.
-- **NID data retention** is time-bound and automatically purged.
-- **Audit trails and shadow-ban** keep suspicious activity contained.
+- No-login emergency donor search and availability/verification-based ranking.
+- Emergency requests with response tracking and urgency ordering.
+- Donation claim, recipient confirmation, cooldown, points, badges, and leaderboards.
+- Organization workflows for hospitals and blood clubs.
+- Masked phone numbers, challenge/rate-limit checks, QR tokens, retention controls, and audit trails.
+- Leaflet/GeoJSON demand visualization, Firebase push notifications, Telegram alerts, and PWA support.
+- Optional FastAPI/scikit-learn donor-ranking and request-parsing service under `roktodut-ml-service`.
 
----
+These are repository capabilities; no outcome metrics or real-world clinical impact are reported here.
 
-## ⚙️ Local Setup (Laravel App)
-**Prerequisites:** PHP 8.2+, Composer, Node.js 18+, MySQL 8+, Redis
+## Stack
 
-1. Install dependencies:
-   - `composer install`
-   - `npm install`
-2. Configure environment:
-   - `copy .env.example .env`
-   - Update DB, Redis, Firebase, and OAuth settings in `.env`
-3. Bootstrap app:
-   - `php artisan key:generate`
-   - `php artisan migrate`
-4. Build assets:
-   - `npm run build`
+Laravel 12 and PHP 8.2; MySQL; Redis; Sanctum; Reverb; Blade; Tailwind CSS; Alpine.js; Vite; Leaflet; Firebase; Telegram; and the optional FastAPI/scikit-learn service. Exact dependencies are defined in `composer.json`, `package.json`, and the ML service requirements file.
 
-**Run locally:**
-- `composer run dev` (Laravel server + queue + logs + Vite)
+## Setup
 
-## 🧠 Local Setup (ML Service)
-**Prerequisites:** Python 3.10+
+Prerequisites: PHP 8.2+, Composer, Node.js 18+, MySQL 8+, and Redis.
 
-1. Install dependencies:
-   - `pip install -r roktodut-ml-service\requirements.txt`
-2. Run API:
-   - `uvicorn roktodut-ml-service.main:app --host 127.0.0.1 --port 8001`
+```bash
+composer install
+npm install
+copy .env.example .env          # Windows
+# cp .env.example .env          # macOS/Linux
+php artisan key:generate
+php artisan migrate
+npm run build
+composer run dev
+```
 
-**Required env:** `ROKTODUT_API_KEY` (or default `ROKTODUT_AI_SECRET`), `GROQ_API_KEY` for NLP parsing.
+Configure database, Redis, Firebase, OAuth, notification, and application secrets in `.env`. The optional ML service is set up separately:
 
----
+```bash
+pip install -r roktodut-ml-service/requirements.txt
+uvicorn roktodut-ml-service.main:app --host 127.0.0.1 --port 8001
+```
 
-## 🧪 Useful Commands
-| Task | Command |
-|---|---|
-| Run dev stack | `composer run dev` |
-| Build assets | `npm run build` |
-| Run tests | `composer run test` |
-| Ops check | `composer run ops-check` |
-| Smoke check | `composer run smoke-check` |
+On Windows, use the equivalent path separator for the ML requirements path. Useful repository scripts include `composer run test`, `composer run ops-check`, and `composer run smoke-check`.
 
----
+## Limitations and safety
 
-## 👥 Team
-| Name | Role / Contribution | GitHub |
-|---|---|---|
-| **Jahid Hasan** | Lead Backend, Database Architecture, Security | [@jahidstm](https://github.com/jahidstm) |
-| **Md. Alif Khan** | Frontend Refactoring, API Integration, UI Components | [@3alif](https://github.com/3alif) |
-| **Nohzat Tabassum** | UI/UX, OAuth Integration, System Documentation | [@NohzatTabassum](https://github.com/NohzatTabassum) |
-| **Mst. Moumita Rahman Meem** | Database Seeders, Localization, Demo Data | [@Meem-1137](https://github.com/Meem-1137) |
+This repository is software for coordinating donor discovery, not medical advice or a substitute for hospital verification. Deployment credentials, external notification services, and populated application data are required for end-to-end operation. The repository has no dedicated `LICENSE` file; `composer.json` declares the application package as MIT, but license status for the complete repository is not otherwise specified.
 
-<div align="center">
-  <sub>Built with ❤️ for humanity. Every drop counts.</sub>
-</div>
+## Dataset and citation
+
+No external dataset or formal citation is identified in the repository README. Demo/seed data should not be treated as verified donor records.
+
+## Team and contact
+
+Jahid Hasan (lead backend/database/security) — [GitHub](https://github.com/jahidstm) · [LinkedIn](https://www.linkedin.com/in/jahidstm/). The existing project documentation also credits Md. Alif Khan, Nohzat Tabassum, and Mst. Moumita Rahman Meem.
