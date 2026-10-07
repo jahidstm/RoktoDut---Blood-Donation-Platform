@@ -1,34 +1,30 @@
-@extends('layouts.app')
+@extends('layouts.admin-dashboard')
 
 @section('title', 'রিপোর্ট ট্রায়াজ — অ্যাডমিন — রক্তদূত')
 
 @section('content')
-<div class="max-w-6xl mx-auto px-4 py-8">
+<div data-panel-id="reports" class="max-w-6xl mx-auto px-4 py-8">
     <div class="mb-6">
         <h1 class="text-2xl font-extrabold text-slate-900">রিপোর্ট ট্রায়াজ</h1>
         <p class="text-sm text-slate-500 font-semibold mt-1">ইউজার ও গেস্ট রিপোর্ট রিভিউ করুন</p>
     </div>
 
-    @if(session('success'))
-        <div class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800 font-bold">
-            {{ session('success') }}
-        </div>
-    @endif
+
 
     @php
         $tabs = [
-            null => ['label' => 'সব', 'count' => $counts['total']],
             'open' => ['label' => 'Open', 'count' => $counts['open']],
             'reviewing' => ['label' => 'Reviewing', 'count' => $counts['reviewing']],
             'resolved' => ['label' => 'Resolved', 'count' => $counts['resolved']],
             'dismissed' => ['label' => 'Dismissed', 'count' => $counts['dismissed']],
+            'all' => ['label' => 'সব', 'count' => $counts['total']],
         ];
     @endphp
 
     <div class="mb-6 flex flex-wrap gap-2">
         @foreach($tabs as $key => $tab)
-            @php $active = ($status === $key) || ($status === null && $key === null); @endphp
-            <a href="{{ route('admin.reports.index', $key ? ['status' => $key] : []) }}"
+            @php $active = ($status === $key); @endphp
+            <a href="{{ route('admin.reports.index', ['status' => $key]) }}"
                class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold {{ $active ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50' }}">
                 <span>{{ $tab['label'] }}</span>
                 <span class="rounded-full px-2 py-0.5 text-xs {{ $active ? 'bg-white/20' : 'bg-slate-100' }}">{{ $tab['count'] }}</span>
@@ -67,7 +63,16 @@
                         <td class="px-4 py-3">
                             <span class="inline-flex rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-700">{{ $report->status }}</span>
                         </td>
-                        <td class="px-4 py-3 text-xs font-semibold text-slate-500">{{ $report->created_at?->diffForHumans() }}</td>
+                        <td class="px-4 py-3 text-xs font-semibold">
+                            <div class="flex flex-col gap-0.5">
+                                <span class="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap">
+                                    🕐 {{ $report->created_at?->diffForHumans() }}
+                                </span>
+                                <span class="text-slate-400 font-medium text-[10px]" title="{{ $report->created_at?->format('d M Y, h:i A') }}">
+                                    {{ $report->created_at?->format('d M Y') }}
+                                </span>
+                            </div>
+                        </td>
                         <td class="px-4 py-3 text-right">
                             <a href="{{ route('admin.reports.show', $report) }}" class="inline-flex rounded-lg bg-slate-800 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700">খুলুন</a>
                         </td>

@@ -54,7 +54,8 @@ class BlogSubmissionController extends Controller
      */
     public function create(): View
     {
-        return view('blog.create');
+        $categories = \App\Models\Category::all();
+        return view('blog.create', compact('categories'));
     }
 
     // =========================================================================
@@ -81,7 +82,6 @@ class BlogSubmissionController extends Controller
             $coverImagePath = $this->processCoverImage($request->file('cover_image'));
         }
 
-        // ── Create Post (status = pending_review) ──────────────────────────
         $post = Post::create([
             'author_user_id' => Auth::id(),
             'title'          => $validated['title'],
@@ -93,6 +93,10 @@ class BlogSubmissionController extends Controller
             'published_at'   => null,
         ]);
 
+        if (!empty($validated['categories'])) {
+            $post->categories()->attach($validated['categories']);
+        }
+
         $admins = User::where('role', 'admin')->get();
         if ($admins->isNotEmpty()) {
             Notification::send($admins, new AdminTaskNotification(
@@ -101,6 +105,28 @@ class BlogSubmissionController extends Controller
                 title: '📝 পেন্ডিং ব্লগ মডারেশন',
                 taskType: 'blog_moderation',
             ));
+        }
+
+        // ── Health Meta ────────────────────────────────────────────────────
+        if ($post->type === 'health') {
+            $sourcesJson = [];
+            if (!empty($validated['sources']) && is_array($validated['sources'])) {
+                foreach ($validated['sources'] as $source) {
+                    if (!empty($source['title'])) {
+                        $sourcesJson[] = [
+                            'title' => $source['title'],
+                            'url' => $source['url'] ?? null,
+                            'accessed_at' => date('Y-m-d')
+                        ];
+                    }
+                }
+            }
+            // Use an array directly; HealthBlogMeta casts 'sources_json' to array
+            \App\Models\HealthBlogMeta::create([
+                'post_id' => $post->id,
+                'medically_reviewed_by' => null, // Will be set during review
+                'sources_json' => $sourcesJson
+            ]);
         }
 
         // ── Story Meta ─────────────────────────────────────────────────────
@@ -148,7 +174,20 @@ class BlogSubmissionController extends Controller
                 'mimes:jpeg,jpg,png,webp,gif',
                 'max:2048',   // 2 MB in kilobytes (Laravel's max rule uses KB)
             ],
+
+            // ── Categories ──
+            'categories' => ['nullable', 'array'],
+            'categories.*' => ['integer', 'exists:categories,id'],
         ];
+
+        // ── Health Meta Rules ──────────────────────────────────────────
+        if (!$isStory) {
+            $rules = array_merge($rules, [
+                'sources' => ['nullable', 'array', 'max:5'],
+                'sources.*.title' => ['required_with:sources.*.url', 'string', 'max:255'],
+                'sources.*.url' => ['nullable', 'url', 'max:1000'],
+            ]);
+        }
 
         // ── Story-Specific Rules ─────────────────────────────────────────
         if ($isStory) {

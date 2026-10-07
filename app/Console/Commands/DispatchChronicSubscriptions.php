@@ -2,12 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Jobs\DispatchEmergencyAlert;
-use App\Jobs\SendEmergencyBloodRequestNotificationJob;
+use App\Jobs\SmartBloodRequestBroadcastJob;
 use App\Models\BloodRequest;
 use App\Models\ChronicRequestSubscription;
 use App\Models\ChronicSubscriptionBuddy;
-use App\Models\District;
 use App\Services\DonorMatchingService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -25,6 +23,14 @@ class DispatchChronicSubscriptions extends Command
 
         ChronicRequestSubscription::query()
             ->where('is_active', true)
+            ->where(function ($query) {
+                $query->where('is_paused', false)
+                      ->orWhere(function ($q) {
+                          $q->where('is_paused', true)
+                            ->whereNotNull('paused_until')
+                            ->where('paused_until', '<', now());
+                      });
+            })
             ->where('next_needed_at', '<=', now()->addDays(30))
             ->orderBy('id')
             ->chunkById(100, function ($subscriptions) use (&$created, &$skipped, $matcher): void {
@@ -41,6 +47,13 @@ class DispatchChronicSubscriptions extends Command
                     if ($subscription->last_dispatched_for?->toDateString() === $cycleDate) {
                         $skipped++;
                         continue;
+                    }
+
+                    // Auto-resume if paused time has expired
+                    if ($subscription->is_paused && $subscription->paused_until && $subscription->paused_until->lt(now())) {
+                        $subscription->is_paused = false;
+                        $subscription->paused_until = null;
+                        $subscription->save();
                     }
 
                     $existing = BloodRequest::query()
@@ -74,21 +87,22 @@ class DispatchChronicSubscriptions extends Command
                             'is_phone_hidden' => (bool) $subscription->is_phone_hidden,
                         ]);
 
-                        DispatchEmergencyAlert::dispatch($request)->afterCommit();
-
-                        $districtName = District::find($request->district_id)?->name ?? 'আপনার';
-                        $donors = $matcher->match($request);
-                        if ($donors->isNotEmpty()) {
-                            $donorIds = $donors->pluck('id')->all();
-                            $this->ensureBuddyPool($subscription, $donorIds);
-                            $priorityDonorIds = $this->resolvePriorityDonorIds($subscription, $donorIds);
-
-                            SendEmergencyBloodRequestNotificationJob::dispatch(
-                                bloodRequestId: $request->id,
-                                districtName: $districtName,
-                                donorIds: $priorityDonorIds
-                            );
+                        // Notify the requester that the chronic request was created
+                        $requesterUser = \App\Models\User::find($subscription->user_id);
+                        if ($requesterUser) {
+                            $requesterUser->notify(new \App\Notifications\ChronicRequestCreatedNotification($request));
                         }
+
+                        $rankedDonors = $matcher->rankDonors($request, 50);
+                        if ($rankedDonors->isNotEmpty()) {
+                            $donorIds = $rankedDonors->pluck('donor_id')->map(fn($id) => (int) $id)->all();
+                            $this->ensureBuddyPool($subscription, $donorIds);
+                        }
+
+                        SmartBloodRequestBroadcastJob::dispatch(
+                            bloodRequestId: $request->id,
+                            topK: 15
+                        )->afterCommit();
 
                         $created++;
                     }
@@ -143,6 +157,12 @@ class DispatchChronicSubscriptions extends Command
                 'position' => $nextPosition,
                 'is_active' => true,
             ]);
+
+            // Notify the assigned buddy
+            $buddyUser = \App\Models\User::find($donorId);
+            if ($buddyUser) {
+                $buddyUser->notify(new \App\Notifications\ChronicBuddyAssignedNotification($subscription));
+            }
 
             $existingCount++;
             $nextPosition++;

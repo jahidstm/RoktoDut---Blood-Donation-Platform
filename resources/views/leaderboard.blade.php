@@ -1,14 +1,59 @@
-@extends('layouts.app')
+@php
+    $layout = 'layouts.app';
+    if(auth()->check()){
+        $u = auth()->user();
+        if($u->isDonor()) {
+            $layout = 'layouts.donor-dashboard'; // leaderboard is in donor sidebar
+        }
+        // admin, org admin, recipient → full-width app layout
+    }
+@endphp
+@extends($layout)
 
 @section('title', 'সেরা রক্তদাতা – রক্তদূত')
 
 @section('content')
-<div id="leaderboard-root" class="max-w-5xl mx-auto px-4 py-8 sm:py-12">
+@php
+    if (!function_exists('getAvatarInitials')) {
+        function getAvatarInitials($name) {
+            $name = trim($name);
+            if (preg_match('/[a-zA-Z]/', $name)) {
+                $words = explode(' ', $name);
+                $initials = '';
+                foreach ($words as $w) {
+                    if (!empty($w)) $initials .= mb_substr($w, 0, 1);
+                }
+                return mb_strtoupper(mb_substr($initials, 0, 2));
+            }
+            return mb_substr($name, 0, 1);
+        }
+    }
+
+    if (!function_exists('getAvatarColor')) {
+        function getAvatarColor($name) {
+            $colors = [
+                'bg-blue-100 text-blue-700',
+                'bg-emerald-100 text-emerald-700',
+                'bg-amber-100 text-amber-700',
+                'bg-purple-100 text-purple-700',
+                'bg-pink-100 text-pink-700',
+                'bg-indigo-100 text-indigo-700',
+                'bg-rose-100 text-rose-700',
+                'bg-teal-100 text-teal-700',
+                'bg-cyan-100 text-cyan-700',
+                'bg-fuchsia-100 text-fuchsia-700',
+            ];
+            $index = abs(crc32($name)) % count($colors);
+            return $colors[$index];
+        }
+    }
+@endphp
+<div id="leaderboard-root" class="max-w-5xl mx-auto px-4 py-8 sm:py-12" data-panel-id="leaderboard">
 
     {{-- ══════════════════════════════════════════
          Hero Section — dynamic based on filters
     ══════════════════════════════════════════ --}}
-    <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-red-600 via-red-700 to-red-900 p-8 sm:p-12 mb-6 shadow-2xl">
+    <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-red-600 via-red-700 to-red-900 p-8 sm:p-12 mb-6 shadow-2xl scroll-reveal hide-in-dashboard" data-scroll-reveal>
         {{-- Decorative blobs --}}
         <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
         <div class="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/4 pointer-events-none"></div>
@@ -67,10 +112,10 @@
     {{-- ══════════════════════════════════════════
          Filter Cards — Two Independent Groups
     ══════════════════════════════════════════ --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 hide-in-dashboard">
 
         {{-- ── Card A: সময়কাল ────────────────────────────────────────────── --}}
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 scroll-reveal" data-scroll-reveal>
             <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                 <span>⏱</span> সময়কাল
             </p>
@@ -82,27 +127,29 @@
                 {{-- সর্বকাল tab --}}
                 <a href="{{ route('leaderboard', array_merge($baseParams, ['time' => 'all'])) }}"
                    id="tab-time-all"
+                   data-leaderboard-tab="1"
                    class="flex-1 text-center text-sm font-bold py-2.5 px-3 rounded-lg transition-all duration-200
                           {{ $time === 'all'
-                              ? 'bg-white text-red-600 shadow-sm'
-                              : 'text-slate-500 hover:text-slate-700' }}">
+                              ? 'bg-red-600 text-white shadow-md'
+                              : 'bg-slate-200 text-slate-600 hover:bg-slate-300 hover:text-slate-800' }}">
                     ⭐ সর্বকাল
                 </a>
 
                 {{-- এই মাস tab --}}
                 <a href="{{ route('leaderboard', array_merge($baseParams, ['time' => 'month'])) }}"
                    id="tab-time-month"
+                   data-leaderboard-tab="1"
                    class="flex-1 text-center text-sm font-bold py-2.5 px-3 rounded-lg transition-all duration-200
                           {{ $time === 'month'
-                              ? 'bg-white text-red-600 shadow-sm'
-                              : 'text-slate-500 hover:text-slate-700' }}">
+                              ? 'bg-red-600 text-white shadow-md'
+                              : 'bg-slate-200 text-slate-600 hover:bg-slate-300 hover:text-slate-800' }}">
                     📅 এই মাস
                 </a>
             </div>
         </div>
 
         {{-- ── Card B: অঞ্চল ──────────────────────────────────────────────── --}}
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 scroll-reveal" data-scroll-reveal>
             <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                 <span>📍</span> অঞ্চল
             </p>
@@ -112,20 +159,22 @@
                     {{-- বাংলাদেশ tab --}}
                     <a href="{{ route('leaderboard', array_merge($baseParams, ['scope' => 'bd', 'district_id' => ''])) }}"
                        id="tab-scope-bd"
+                       data-leaderboard-tab="1"
                        class="flex-1 text-center text-sm font-bold py-2.5 px-3 rounded-lg transition-all duration-200
                               {{ $scope === 'bd'
-                                  ? 'bg-white text-red-600 shadow-sm'
-                                  : 'text-slate-500 hover:text-slate-700' }}">
+                                  ? 'bg-red-600 text-white shadow-md'
+                                  : 'bg-slate-200 text-slate-600 hover:bg-slate-300 hover:text-slate-800' }}">
                         🇧🇩 বাংলাদেশ
                     </a>
 
                     {{-- জেলা tab --}}
                     <a href="{{ route('leaderboard', array_merge($baseParams, ['scope' => 'district'])) }}"
                        id="tab-scope-district"
+                       data-leaderboard-tab="1"
                        class="flex-1 text-center text-sm font-bold py-2.5 px-3 rounded-lg transition-all duration-200
                               {{ $scope === 'district'
-                                  ? 'bg-white text-red-600 shadow-sm'
-                                  : 'text-slate-500 hover:text-slate-700' }}">
+                                  ? 'bg-red-600 text-white shadow-md'
+                                  : 'bg-slate-200 text-slate-600 hover:bg-slate-300 hover:text-slate-800' }}">
                         📍 জেলা
                     </a>
                 </div>
@@ -137,7 +186,6 @@
                         <input type="hidden" name="time"  value="{{ $time }}">
                         <select name="district_id"
                                 id="district-select"
-                                onchange="this.form.submit()"
                                 class="w-full text-sm font-semibold border border-slate-200 rounded-xl px-4 py-2.5
                                        bg-white text-slate-700 focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer">
                             <option value="">— জেলা বেছে নিন —</option>
@@ -153,90 +201,166 @@
         </div>
     </div>
 
+
     {{-- ══════════════════════════════════════════
-         Top 3 Podium
+         Top 3 Podium (Home Page Style)
     ══════════════════════════════════════════ --}}
     @if($top3->count() >= 3)
     @php
-        $podiumConfig = [
-            0 => ['crown' => '👑', 'bg' => 'from-yellow-400 to-amber-500', 'border' => 'border-yellow-300', 'height' => 'h-36 sm:h-44', 'order' => 'sm:order-2 order-1'],
-            1 => ['crown' => '🥈', 'bg' => 'from-slate-400 to-slate-500', 'border' => 'border-slate-300', 'height' => 'h-28 sm:h-36', 'order' => 'sm:order-1 order-2'],
-            2 => ['crown' => '🥉', 'bg' => 'from-amber-600 to-amber-700', 'border' => 'border-amber-400', 'height' => 'h-24 sm:h-32', 'order' => 'sm:order-3 order-3'],
-        ];
-        $podiumList = $top3->values();
-        // Display order: 2nd (left), 1st (center), 3rd (right)
-        $podiumDisplay = [1, 0, 2];
+        $orderedDonors = collect();
+        if($top3->has(0)) $orderedDonors->push(['donor'=>$top3[0],'rank'=>1,'emoji'=>'🥇','label'=>'১ম স্থান']);
+        if($top3->has(1)) $orderedDonors->push(['donor'=>$top3[1],'rank'=>2,'emoji'=>'🥈','label'=>'২য় স্থান']);
+        if($top3->has(2)) $orderedDonors->push(['donor'=>$top3[2],'rank'=>3,'emoji'=>'🥉','label'=>'৩য় স্থান']);
     @endphp
 
-    <div class="mb-6">
-        <div class="flex sm:grid sm:grid-cols-3 flex-col sm:flex-row gap-4 items-end sm:items-end">
-            @foreach($podiumDisplay as $displayIndex)
-                @if(isset($podiumList[$displayIndex]))
-                @php $d = $podiumList[$displayIndex]; $cfg = $podiumConfig[$displayIndex]; @endphp
-                <div class="flex flex-col items-center group {{ $cfg['order'] }} sm:w-auto w-full">
-                    {{-- Avatar --}}
-                    <div class="relative mb-3">
-                        <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br {{ $cfg['bg'] }} flex items-center justify-center text-white font-black text-2xl shadow-lg border-2 {{ $cfg['border'] }} group-hover:scale-110 transition-transform duration-300 overflow-hidden">
-                            @if($d->profile_image)
-                                <img src="{{ asset('storage/' . $d->profile_image) }}" class="w-full h-full object-cover" alt="{{ $d->name }}">
-                            @else
-                                {{ mb_substr($d->name, 0, 1) }}
-                            @endif
-                        </div>
-                        <div class="absolute -top-3 -right-2 text-xl drop-shadow">{{ $cfg['crown'] }}</div>
-                    </div>
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-end justify-center gap-6 mb-16 mt-6 hide-in-dashboard">
+        @foreach($orderedDonors as $item)
+            @php
+                $d = $item['donor'];
+                $rank = $item['rank'];
+                $initial = mb_strtoupper(mb_substr($d->name, 0, 1));
+                $isFirst = $rank === 1;
+                $cardClasses = $isFirst
+                    ? "border-amber-200 shadow-[0_20px_60px_rgba(251,191,36,0.12)] sm:scale-110 pb-8 pt-12 z-10"
+                    : "border-slate-100 shadow-sm pb-6 pt-10 mt-0 sm:mt-8";
+                $avatarRing = match($rank) { 1=>"ring-4 ring-amber-100 border-amber-300", 2=>"border-slate-200", 3=>"border-orange-200", default=>"border-slate-100" };
+                $orderClass = match($rank) { 1=>"order-1 sm:order-2", 2=>"order-2 sm:order-1", 3=>"order-3 sm:order-3", default=>"order-4" };
+            @endphp
 
-                    {{-- Name & info --}}
-                    <div class="text-center mb-2 w-full px-2">
-                        <div class="font-black text-slate-800 text-xs sm:text-sm truncate">{{ explode(' ', $d->name)[0] }}</div>
-                        <div class="text-xs text-slate-500 font-semibold">
-                            {{ $d->blood_group?->value ?? $d->blood_group ?? 'N/A' }}
+            <div class="bg-white rounded-3xl px-6 w-full max-w-xs mx-auto sm:mx-0 flex flex-col items-center relative border-2 {{ $cardClasses }} {{ $orderClass }} transition-all duration-300 hover:-translate-y-2 scroll-reveal" data-scroll-reveal>
+                <div class="absolute -top-4 sm:-top-5 bg-slate-900 text-white text-xs font-black px-5 py-2 rounded-full flex items-center gap-1.5 shadow-lg">
+                    {{ $item['emoji'] }} {{ $item['label'] }}
+                </div>
+                <div class="w-20 h-20 rounded-full border-[3px] {{ $avatarRing }} flex items-center justify-center text-3xl font-black mb-5 overflow-hidden relative">
+                    @php
+                        $init = getAvatarInitials($d->name);
+                        $color = getAvatarColor($d->name);
+                    @endphp
+                    @if($d->profile_image)
+                        <img src="{{ route('profile.avatar', $d) }}" class="w-full h-full object-cover z-10" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <span class="w-full h-full hidden items-center justify-center {{ $color }}">{{ $init }}</span>
+                    @else
+                        <span class="w-full h-full flex items-center justify-center {{ $color }}">{{ $init }}</span>
+                    @endif
+                </div>
+                <h3 class="text-lg font-black text-slate-900 text-center mb-2 truncate w-full">{{ $d->name }}</h3>
+                @if($d->blood_group)
+                <div class="bg-red-50 text-red-600 font-bold text-[10px] px-3 py-1 rounded-lg mb-5 uppercase tracking-widest border border-red-100">{{ $d->blood_group?->value ?? $d->blood_group }} ডোনার</div>
+                @else
+                <div class="h-6 mb-5"></div>
+                @endif
+                <div class="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 flex items-center divide-x divide-slate-200 mb-5">
+                    <div class="flex-1 text-center pr-4">
+                        <div class="text-2xl font-black text-slate-900">
+                            <x-number-ticker :value="$d->total_verified_donations ?? 0" :duration="2000" />
                         </div>
-                        @if($d->badges->count() > 0)
-                            <div class="flex justify-center gap-0.5 mt-1 flex-wrap">
-                                @foreach($d->badges->take(3) as $badge)
-                                    <span class="text-xs" title="{{ $badge->bn_name ?? $badge->name }}">{{ $badge->emoji ?? $badge->icon }}</span>
-                                @endforeach
-                            </div>
-                        @endif
+                        <div class="text-[10px] font-bold text-slate-400 mt-1">রক্তদান</div>
                     </div>
-
-                    {{-- Podium platform --}}
-                    <div class="{{ $cfg['height'] }} w-full rounded-t-2xl bg-gradient-to-b {{ $cfg['bg'] }} flex flex-col items-center justify-start pt-3 shadow-lg">
-                        <div class="text-white font-black text-lg sm:text-xl">
-                            {{ $time === 'month' ? number_format($d->monthly_points ?? 0) : number_format($d->points ?? 0) }}
+                    <div class="flex-1 text-center pl-4">
+                        <div class="text-2xl font-black text-slate-900">
+                            <x-number-ticker :value="$time === 'month' ? ($d->monthly_points ?? 0) : ($d->points ?? 0)" :duration="2500" :format="true" />
                         </div>
-                        <div class="text-white/80 text-[10px] sm:text-xs font-semibold">{{ $pointsLabel }}</div>
-                        <div class="text-white/70 text-[10px] font-bold mt-1">{{ $d->total_verified_donations ?? 0 }} রক্তদান</div>
+                        <div class="text-[10px] font-bold text-slate-400 mt-1">পয়েন্ট</div>
                     </div>
                 </div>
-                @endif
-            @endforeach
-        </div>
+                <div class="flex gap-2 justify-center">
+                    @if($d->badges->isNotEmpty())
+                        @foreach($d->badges->take(3) as $badge)
+                            @php $bd = \App\Services\GamificationService::getBadgeDisplayData($badge->name); @endphp
+                            {{-- Lottie Animation Structure for Podium Badges --}}
+                            {{-- We fallback to emoji if the Lottie JSON path is empty or fails --}}
+                            <div class="group relative cursor-help" title="{{ $bd['bn'] }}">
+                                <lottie-player 
+                                    src="{{ asset('animations/badges/' . strtolower($badge->name) . '.json') }}" 
+                                    background="transparent" 
+                                    speed="1" 
+                                    style="width: 32px; height: 32px;" 
+                                    hover loop
+                                    {{-- If JSON is missing, show emoji --}}
+                                    onError="this.style.display='none'; this.nextElementSibling.style.display='inline-block';"
+                                ></lottie-player>
+                                <span class="text-xl drop-shadow-sm hover:scale-125 transition-transform" style="display:none;">{{ $bd['emoji'] }}</span>
+                            </div>
+                        @endforeach
+                    @else
+                        <span class="text-xl opacity-20 grayscale">🎖️</span><span class="text-xl opacity-20 grayscale">🎖️</span><span class="text-xl opacity-20 grayscale">🎖️</span>
+                    @endif
+                </div>
+            </div>
+        @endforeach
     </div>
     @endif
 
     {{-- ══════════════════════════════════════════
-         Full Rankings List — Top 50
+         Full Rankings List (IELTSly Style)
     ══════════════════════════════════════════ --}}
-    <div x-data="{ showAll: false }" class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        {{-- List header --}}
-        <div class="px-5 py-4 border-b border-slate-100 bg-slate-50/60 ">
-            <h2 class="font-black text-slate-800 flex items-center gap-2 text-sm sm:text-base">
-                <span>📋</span>
-                শীর্ষ ১০ তালিকা
-                <span class="text-xs font-semibold text-slate-500 ">—</span>
-                <span class="text-xs font-semibold text-slate-500 ">
-                    {{ $time === 'month' ? 'মাসিক পয়েন্ট' : 'সর্বকালীন' }}
-                    •
-                    {{ $scope === 'district' && $selectedDistrict ? $selectedDistrict->name : 'বাংলাদেশ' }}
-                </span>
-                <span class="ml-auto text-xs font-semibold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
-                    {{ $donors->count() }} জন
-                </span>
-            </h2>
+    
+    {{-- ── Current User Rank Card (Dashboard Only) ── --}}
+    @auth
+        @php
+            $myPts       = $time === 'month' ? (Auth::user()->monthly_points ?? 0) : (Auth::user()->points ?? 0);
+            $myDons      = Auth::user()->total_verified_donations ?? 0;
+        @endphp
+        
+        <div class="hidden bg-white rounded-[2rem] p-6 mb-8 border border-red-100 shadow-[0_8px_30px_rgba(220,38,38,0.06)] items-center justify-between relative overflow-hidden show-in-dashboard scroll-reveal flex-col sm:flex-row gap-6 sm:gap-0" data-scroll-reveal>
+            {{-- Decorative background --}}
+            <div class="absolute right-0 top-0 w-64 h-64 bg-red-50/50 rounded-full blur-3xl -z-10 translate-x-1/2 -translate-y-1/2"></div>
+            
+            <div class="flex items-center gap-4 sm:gap-6 w-full sm:w-auto">
+                {{-- Rank Circle --}}
+                <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-[3px] sm:border-4 border-red-100 bg-white shadow-md sm:shadow-lg flex flex-col items-center justify-center shrink-0 relative z-10 px-2">
+                    <span class="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Rank</span>
+                    <span class="text-base sm:text-xl font-black text-red-600 mt-0.5 sm:mt-1 truncate w-full text-center">#{{ $myRank ?? 'N/A' }}</span>
+                </div>
+                
+                {{-- Name & Badge --}}
+                <div>
+                    <h2 class="text-xl sm:text-2xl font-black text-slate-900 mb-1 sm:mb-2">{{ Auth::user()->name }}</h2>
+                    <div class="flex flex-wrap items-center gap-2">
+                        @if($myRank && $myRank <= 10)
+                            <span class="text-[10px] sm:text-[11px] font-bold text-red-600 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full">Top 10</span>
+                        @elseif($myRank && $myRank <= 50)
+                            <span class="text-[10px] sm:text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full">Top 50</span>
+                        @elseif($myRank && $myRank <= 100)
+                            <span class="text-[10px] sm:text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full">Top 100</span>
+                        @endif
+                        
+                        @foreach(Auth::user()->badges->take(1) as $badge)
+                            @php $bd = \App\Services\GamificationService::getBadgeDisplayData($badge->name); @endphp
+                            <span class="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                                {{ $bd['emoji'] }} {{ $badge->bn_name ?? $badge->name }}
+                            </span>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+            
+            {{-- Stats --}}
+            <div class="flex items-center gap-6 sm:gap-8 pr-0 sm:pr-4 w-full sm:w-auto justify-center sm:justify-end">
+                <div class="text-center">
+                    <div class="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-0.5 sm:mb-1">রক্তদান</div>
+                    <div class="text-2xl sm:text-3xl font-black text-blue-600"><x-number-ticker :value="$myDons" /></div>
+                </div>
+                <div class="w-px h-10 sm:h-12 bg-slate-200"></div>
+                <div class="text-center">
+                    <div class="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-0.5 sm:mb-1">{{ $pointsLabel ?? 'পয়েন্ট' }}</div>
+                    <div class="text-2xl sm:text-3xl font-black text-amber-600"><x-number-ticker :value="$myPts" :format="true" /></div>
+                </div>
+            </div>
         </div>
+    @endauth
 
+    <div class="mb-4 flex items-center justify-between scroll-reveal" data-scroll-reveal>
+        <div class="flex items-center gap-2">
+            <span class="text-2xl drop-shadow-sm">🏆</span>
+            <h2 class="text-xl font-black text-slate-800">শীর্ষ রক্তদাতা</h2>
+        </div>
+        <div class="text-xs font-bold text-slate-400 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm">
+            {{ $donors->count() }} জন ডোনার
+        </div>
+    </div>
+
+    <div x-data="{ showAll: false }" class="bg-white rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-slate-100 overflow-hidden mb-8 scroll-reveal" data-scroll-reveal>
         @forelse($donors as $index => $donor)
             @php
                 $rank       = $index + 1;
@@ -245,166 +369,158 @@
                 $displayPts = $time === 'month' ? ($donor->monthly_points ?? 0) : ($donor->points ?? 0);
             @endphp
             <div @if($index >= 10) x-show="showAll" x-cloak style="display: none;" @endif 
-                 class="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 border-b border-slate-50 transition-colors duration-200
-                        {{ $isMe       ? 'bg-blue-50/70 border-l-4 border-l-blue-400' : 'hover:bg-slate-50/60' }}
-                        {{ $isPlatinum && !$isMe ? 'bg-purple-50/20 ' : '' }}">
+                 class="flex items-center gap-4 px-6 py-4 border-b border-slate-50 transition-colors duration-200 scroll-reveal
+                        {{ $isMe ? 'bg-red-50/30' : 'hover:bg-slate-50/60' }}"
+                 data-scroll-reveal>
 
                 {{-- Rank badge --}}
-                <div class="flex-shrink-0 w-8 text-center">
-                    @if($rank === 1)     <span class="text-xl leading-none">🥇</span>
-                    @elseif($rank === 2) <span class="text-xl leading-none">🥈</span>
-                    @elseif($rank === 3) <span class="text-xl leading-none">🥉</span>
-                    @else <span class="text-sm font-black text-slate-400 ">#{{ $rank }}</span>
+                <div class="flex-shrink-0 w-10 text-center">
+                    @if($rank === 1)     <span class="text-3xl drop-shadow-sm">🥇</span>
+                    @elseif($rank === 2) <span class="text-3xl drop-shadow-sm">🥈</span>
+                    @elseif($rank === 3) <span class="text-3xl drop-shadow-sm">🥉</span>
+                    @else <span class="text-sm font-bold text-slate-400">#{{ $rank }}</span>
                     @endif
                 </div>
 
                 {{-- Avatar --}}
-                <div class="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-red-100 to-red-200  flex items-center justify-center overflow-hidden
-                            {{ $isPlatinum ? 'ring-2 ring-purple-300 ring-offset-1' : '' }}
-                            {{ $isMe ? 'ring-2 ring-blue-400 ring-offset-1' : '' }}">
+                <div class="flex-shrink-0 w-12 h-12 rounded-full border border-slate-200 flex items-center justify-center overflow-hidden relative">
+                    @php
+                        $init = getAvatarInitials($donor->name);
+                        $color = getAvatarColor($donor->name);
+                    @endphp
                     @if($donor->profile_image)
-                        <img src="{{ asset('storage/' . $donor->profile_image) }}" class="w-full h-full object-cover" alt="{{ $donor->name }}">
+                        <img src="{{ route('profile.avatar', $donor) }}" class="w-full h-full object-cover z-10" alt="{{ $donor->name }}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <span class="w-full h-full hidden items-center justify-center font-black text-sm {{ $color }}">{{ $init }}</span>
                     @else
-                        <span class="text-red-700 font-black text-sm">{{ mb_substr($donor->name, 0, 1) }}</span>
+                        <span class="w-full h-full flex items-center justify-center font-black text-sm {{ $color }}">{{ $init }}</span>
                     @endif
                 </div>
 
-                {{-- Name, blood group, badges, district --}}
+                {{-- Name & Badges --}}
                 <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-1.5 flex-wrap">
-                        <span class="font-black text-slate-800 text-sm truncate {{ $isPlatinum ? 'text-purple-800 ' : '' }}">
-                            {{ $donor->name }}
-                        </span>
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-slate-800 text-base truncate">{{ $donor->name }}</span>
                         @if($isMe)
-                            <span class="inline-flex items-center text-[10px] font-black text-blue-700 bg-blue-100 border border-blue-200 rounded-full px-1.5 py-0.5">
-                                আপনি
-                            </span>
-                        @endif
-                        @if($isPlatinum)
-                            <span class="inline-flex items-center text-[10px] font-black text-purple-700 bg-purple-100 border border-purple-200 rounded-full px-1.5 py-0.5">
-                                ✨ প্লাটিনাম
-                            </span>
+                            <span class="text-[10px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded uppercase tracking-wider">You</span>
                         @endif
                     </div>
-                    <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                        {{-- Blood group chip --}}
-                        <span class="text-[10px] font-black text-red-700 bg-red-50 border border-red-100 rounded-full px-2 py-0.5">
-                            {{ $donor->blood_group?->value ?? $donor->blood_group ?? 'N/A' }}
-                        </span>
-                        @if($donor->district)
-                            <span class="text-[10px] text-slate-500 font-semibold flex items-center gap-0.5">
-                                📍 {{ $donor->district->name }}
-                            </span>
-                        @endif
-                        @foreach($donor->badges->take(3) as $badge)
+                    <div class="flex items-center gap-1.5 mt-1">
+                        @foreach($donor->badges->take(1) as $badge)
                             @php $bd = \App\Services\GamificationService::getBadgeDisplayData($badge->name); @endphp
-                            <span class="hidden sm:inline-flex items-center gap-0.5 text-[10px] font-bold {{ $bd['color'] }} border rounded-full px-1.5 py-0.5"
-                                  title="{{ $badge->bn_name ?? $badge->name }}">
+                            <span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
                                 {{ $bd['emoji'] }} {{ $badge->bn_name ?? $badge->name }}
                             </span>
                         @endforeach
                     </div>
                 </div>
 
-                {{-- Points & donations --}}
-                <div class="flex-shrink-0 text-right">
-                    <div class="font-black text-slate-800 text-base tabular-nums">
-                        {{ number_format($displayPts) }}
+                {{-- Stats (রক্তদান & পয়েন্ট) --}}
+                <div class="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-6 text-right pr-2">
+                    <div class="flex items-center gap-1 text-[11px] font-semibold text-slate-500 sm:hidden">
+                        রক্তদান <span class="font-bold text-blue-600"><x-number-ticker :value="$donor->total_verified_donations ?? 0" /></span>
                     </div>
-                    <div class="text-[10px] text-slate-400 font-semibold">{{ $pointsLabel }}</div>
-                    <div class="text-[10px] text-slate-400 mt-0.5">
-                        {{ $donor->total_verified_donations ?? 0 }} রক্তদান
+                    <div class="hidden sm:block">
+                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">রক্তদান</div>
+                        <div class="font-bold text-blue-600 text-sm"><x-number-ticker :value="$donor->total_verified_donations ?? 0" /></div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{{ $pointsLabel }}</div>
+                        <div class="font-bold text-amber-600 text-sm flex items-center gap-1 justify-end">
+                            <x-number-ticker :value="$displayPts" :format="true" />
+                        </div>
                     </div>
                 </div>
             </div>
 
         @empty
-            {{-- Empty state — differentiated by mode --}}
+            {{-- Empty state --}}
             <div class="py-16 text-center px-6">
-                <div class="text-5xl mb-4">
-                    @if($scope === 'district' && !$districtId)
-                        🗺️
-                    @elseif($time === 'month')
-                        📅
-                    @else
-                        🩸
-                    @endif
-                </div>
-                @if($scope === 'district' && !$districtId)
-                    <p class="text-slate-600 font-bold text-lg">জেলা বেছে নিন</p>
-                    <p class="text-slate-400 text-sm mt-1">উপরের ড্রপডাউন থেকে একটি জেলা সিলেক্ট করুন।</p>
-                @elseif($time === 'month' && $scope === 'district')
-                    <p class="text-slate-600 font-bold text-lg">এই মাসে এখনো কেউ নেই</p>
-                    <p class="text-slate-400 text-sm mt-1">
-                        {{ $selectedDistrict ? $selectedDistrict->name . ' জেলায়' : 'এই জেলায়' }} এই মাসে এখনো কোনো রক্তদান লগ হয়নি।
-                    </p>
-                @elseif($time === 'month')
-                    <p class="text-slate-600 font-bold text-lg">এই মাসে এখনো কোনো তথ্য নেই</p>
-                    <p class="text-slate-400 text-sm mt-1">{{ $currentMonth }} মাসে রক্তদান করুন এবং প্রথম হোন!</p>
-                @else
-                    <p class="text-slate-600 font-bold text-lg">এখনো কোনো তথ্য নেই</p>
-                    <p class="text-slate-400 text-sm mt-1">রক্তদান করুন এবং তালিকায় আপনার নাম যুক্ত করুন!</p>
-                @endif
+                <div class="text-5xl mb-4">🩸</div>
+                <p class="text-slate-600 font-bold text-lg">এখনো কোনো তথ্য নেই</p>
+                <p class="text-slate-400 text-sm mt-1">রক্তদান করুন এবং তালিকায় আপনার নাম যুক্ত করুন!</p>
             </div>
         @endforelse
 
-        @if($donors->count() > 10)
-            <div x-show="!showAll" class="p-4 text-center border-b border-slate-50">
-                <button @click="showAll = true" type="button" class="inline-flex items-center gap-2 text-sm font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 transition-colors rounded-full px-5 py-2.5">
-                    ⬇️ আরো দেখুন (Top 50)
-                </button>
-            </div>
-        @endif
-
-        {{-- ── "আপনার অবস্থান" sticky row — লগইন ইউজার top 50-এ না থাকলে ── --}}
+        {{-- ── Current User Preview Row ── --}}
         @auth
             @php
-                $authId      = Auth::id();
-                $inTopList   = $donors->contains('id', $authId);
-                $hasActivity = (Auth::user()->points ?? 0) > 0 || (Auth::user()->total_verified_donations ?? 0) > 0;
+                $myPts       = $time === 'month' ? (Auth::user()->monthly_points ?? 0) : (Auth::user()->points ?? 0);
+                $myDons      = Auth::user()->total_verified_donations ?? 0;
+                $hasActivity = $myPts > 0 || $myDons > 0;
+                $isOutsideTop10 = $myRank === null || $myRank > 10;
+                $isInTop50 = $myRank !== null && $myRank <= 50;
             @endphp
-            @if(!$inTopList && $hasActivity && $myRank !== null)
-                <div class="flex items-center gap-3 px-5 py-2 bg-slate-100 ">
-                    <div class="flex-1 h-px bg-slate-300 "></div>
-                    <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest whitespace-nowrap">আপনার অবস্থান</span>
-                    <div class="flex-1 h-px bg-slate-300 "></div>
-                </div>
-
-                <div class="flex items-center gap-4 px-5 py-4 bg-gradient-to-r from-blue-50 to-indigo-50  border-l-4 border-l-blue-500 sticky bottom-0">
-                    <div class="flex-shrink-0 w-8 text-center">
-                        <span class="text-sm font-black text-blue-600 ">#{{ $myRank }}</span>
+            @if($isOutsideTop10 && $hasActivity)
+                <div @if($isInTop50) x-show="!showAll" x-cloak @endif class="flex items-center gap-4 px-6 py-4 bg-red-50/90 border-t border-red-100 transition-all duration-300">
+                    {{-- Rank badge --}}
+                    <div class="flex-shrink-0 w-10 text-center">
+                        <span class="text-sm font-bold text-slate-400">#{{ $myRank ?? 'N/A' }}</span>
                     </div>
-                    <div class="flex-shrink-0 w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center overflow-hidden ring-2 ring-blue-400 ring-offset-1">
+
+                    {{-- Avatar --}}
+                    <div class="flex-shrink-0 w-12 h-12 rounded-full border border-red-200 flex items-center justify-center overflow-hidden relative">
+                        @php
+                            $init = getAvatarInitials(Auth::user()->name);
+                            $color = getAvatarColor(Auth::user()->name);
+                        @endphp
                         @if(Auth::user()->profile_image)
-                            <img src="{{ asset('storage/' . Auth::user()->profile_image) }}" class="w-full h-full object-cover" alt="{{ Auth::user()->name }}">
+                            <img src="{{ route('profile.avatar', Auth::user()) }}" class="w-full h-full object-cover z-10" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <span class="w-full h-full hidden items-center justify-center font-black text-sm {{ $color }}">{{ $init }}</span>
                         @else
-                            <span class="text-blue-700 font-black text-sm">{{ mb_substr(Auth::user()->name, 0, 1) }}</span>
+                            <span class="w-full h-full flex items-center justify-center font-black text-sm {{ $color }}">{{ $init }}</span>
                         @endif
                     </div>
+
+                    {{-- Name & Badges --}}
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2">
-                            <span class="font-black text-blue-900 text-sm truncate">{{ Auth::user()->name }}</span>
-                            <span class="text-[10px] font-black text-blue-600 bg-blue-100 border border-blue-200 rounded-full px-1.5 py-0.5">আপনি</span>
+                            <span class="font-bold text-slate-800 text-base truncate">{{ Auth::user()->name }}</span>
+                            <span class="text-[10px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded uppercase tracking-wider">You</span>
                         </div>
-                        <p class="text-[11px] text-blue-600 font-semibold mt-0.5">
-                            আরো {{ max(0, $myRank - 50) }} ধাপ এগিয়ে শীর্ষ ৫০-এ আসুন!
-                        </p>
+                        <div class="flex items-center gap-1.5 mt-1">
+                            <p class="text-[11px] text-slate-500 font-semibold truncate">
+                                @if($myRank && $myRank > 50)
+                                    আরো {{ max(0, $myRank - 50) }} ধাপ এগিয়ে শীর্ষ ৫০-এ আসুন!
+                                @else
+                                    শীর্ষ ১০-এ আসতে রক্তদান করুন!
+                                @endif
+                            </p>
+                        </div>
                     </div>
-                    <div class="flex-shrink-0 text-right">
-                        <div class="font-black text-blue-800 text-base tabular-nums">
-                            {{ number_format($myPoints ?? 0) }}
+
+                    {{-- Stats --}}
+                    <div class="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-6 text-right pr-2">
+                        <div class="flex items-center gap-1 text-[11px] font-semibold text-slate-500 sm:hidden">
+                            রক্তদান <span class="font-bold text-blue-600"><x-number-ticker :value="$myDons" /></span>
                         </div>
-                        <div class="text-[10px] text-blue-500 font-semibold">{{ $pointsLabel }}</div>
+                        <div class="hidden sm:block">
+                            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">রক্তদান</div>
+                            <div class="font-bold text-blue-600 text-sm"><x-number-ticker :value="$myDons" /></div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{{ $pointsLabel }}</div>
+                            <div class="font-bold text-amber-600 text-sm flex items-center gap-1 justify-end">
+                                <x-number-ticker :value="$myPts" :format="true" />
+                            </div>
+                        </div>
                     </div>
                 </div>
             @endif
         @endauth
+
+        @if($donors->count() > 10)
+            <div x-show="!showAll" class="p-4 text-center border-t border-slate-50 bg-slate-50/50">
+                <button @click="showAll = true" type="button" class="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors">
+                    সম্পূর্ণ তালিকা দেখুন ⬇️
+                </button>
+            </div>
+        @endif
     </div>
 
     {{-- ══════════════════════════════════════════
          Footer link row
     ══════════════════════════════════════════ --}}
-    <div class="mt-5 flex items-center justify-center">
+    <div class="mt-5 flex items-center justify-center hide-in-dashboard">
         <a href="{{ route('gamification.guide') }}"
            class="inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-red-600 transition-colors border border-slate-200 hover:border-red-200 bg-white rounded-xl px-5 py-2.5 shadow-sm">
             🪙 পয়েন্ট ও ব্যাজ সিস্টেম সম্পর্কে জানুন
@@ -414,17 +530,46 @@
 
 </div>
 @push('scripts')
+{{-- Lottie Player Script (Lightweight) --}}
+<script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+
 <script>
 (() => {
     const root = document.getElementById('leaderboard-root');
     if (!root) return;
 
-    const tabSelector = '#tab-time-all, #tab-time-month, #tab-scope-bd, #tab-scope-district';
+    const tabSelector = '[data-leaderboard-tab]';
+    const pageCache = {};
 
     const loadLeaderboard = async (url, { pushState = true } = {}) => {
         try {
+            // Check cache first for instant response
+            if (pageCache[url]) {
+                const nextRoot = pageCache[url];
+                root.innerHTML = nextRoot.innerHTML;
+                root.style.opacity = '1';
+                root.style.pointerEvents = 'auto';
+                
+                if (pushState) {
+                    window.history.pushState({ leaderboard: true }, '', url);
+                }
+                
+                if (window.Alpine && typeof window.Alpine.initTree === 'function') {
+                    window.Alpine.initTree(root);
+                }
+                if (typeof window.initScrollReveal === 'function') {
+                    window.initScrollReveal(root);
+                }
+                return;
+            }
+
+            // Visual loading state
+            root.style.opacity = '0.5';
+            root.style.pointerEvents = 'none';
+            root.style.transition = 'opacity 0.2s';
+
             const response = await fetch(url, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-Partial': 'leaderboard' },
                 credentials: 'same-origin',
             });
 
@@ -442,7 +587,14 @@
                 return;
             }
 
+            // Cache for future clicks
+            pageCache[url] = nextRoot.cloneNode(true);
+
             root.innerHTML = nextRoot.innerHTML;
+            
+            // Remove loading state
+            root.style.opacity = '1';
+            root.style.pointerEvents = 'auto';
 
             if (pushState) {
                 window.history.pushState({ leaderboard: true }, '', url);
@@ -451,22 +603,27 @@
             if (window.Alpine && typeof window.Alpine.initTree === 'function') {
                 window.Alpine.initTree(root);
             }
+            if (typeof window.initScrollReveal === 'function') {
+                window.initScrollReveal(root);
+            }
         } catch (error) {
             window.location.href = url;
         }
     };
 
-    root.addEventListener('click', (event) => {
+    document.addEventListener('click', (event) => {
         const link = event.target.closest(tabSelector);
         if (!link) return;
+        if (!root.contains(link)) return;
 
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
         loadLeaderboard(link.href);
     });
 
-    root.addEventListener('change', (event) => {
+    document.addEventListener('change', (event) => {
         if (event.target.id !== 'district-select') return;
+        if (!root.contains(event.target)) return;
 
         const form = event.target.closest('form');
         if (!form) return;

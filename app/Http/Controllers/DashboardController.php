@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\BloodComponentType;
 use App\Models\BloodRequest;
 use App\Models\BloodRequestResponse;
 use App\Models\District;
@@ -19,7 +20,13 @@ class DashboardController extends Controller
         }
 
         $user = Auth::user()->load('badges');
-        $isDonor = $user->is_donor; // ✅ Use new boolean flag instead of role
+        $isDonor = $user->is_donor;
+
+        // ২. ডোনার হলে → নতুন dedicated donor dashboard এ পাঠাও
+        if ($isDonor) {
+            return redirect()->route('donor.dashboard');
+        }
+
 
         // ২. স্ট্যাটিস্টিকস ক্যালকুলেশন
         // "মোট রিকোয়েস্ট": Donor হলে responded requests, Recipient হলে created requests
@@ -45,11 +52,11 @@ class DashboardController extends Controller
             })
             ->count();
 
-        // "সফলতার হার": (Fulfilled Donations / Total Responses) * 100. If total responses is 0, show "N/A" (not 0%).
+        // "সফলতার হার": (Fulfilled Donations / Total Responses) * 100. যদি response 0 হয়, "তথ্য নেই" দেখান।
         $totalUserResponses = BloodRequestResponse::where('user_id', $user->id)->count();
         $successRate = $totalUserResponses > 0
             ? round(($totalContributions / $totalUserResponses) * 100, 1)
-            : 'N/A';
+            : 'তথ্য নেই';
 
         // ৩. সাম্প্রতিক ৫টি রিকোয়েস্টের হিস্ট্রি (Eager Loading সহ)
         $recentRequestsQuery = BloodRequest::query()
@@ -196,7 +203,44 @@ class DashboardController extends Controller
             }
         }
 
-        return view('dashboard', compact(
+        $donationRecoveryCards = collect([
+            [
+                'component_key' => BloodComponentType::WHOLE_BLOOD->value,
+                'title' => 'পূর্ণ রক্ত / PRBC',
+                'max_cooldown_days' => 120,
+            ],
+            [
+                'component_key' => BloodComponentType::PLASMA->value,
+                'title' => 'প্লাজমা',
+                'max_cooldown_days' => 28,
+            ],
+            [
+                'component_key' => BloodComponentType::PLATELETS->value,
+                'title' => 'প্লাটিলেট',
+                'max_cooldown_days' => 14,
+            ],
+        ])->map(function (array $item) use ($user) {
+            $remainingDays = $user->daysUntilNextDonation($item['component_key']);
+            $progress = (int) round((($item['max_cooldown_days'] - $remainingDays) / $item['max_cooldown_days']) * 100);
+            $progress = max(0, min(100, $progress));
+            $eligibleOn = now()->copy()->addDays($remainingDays)->startOfDay();
+            $isReady = $remainingDays === 0;
+
+            return [
+                ...$item,
+                'remaining_days' => $remainingDays,
+                'eligible_on' => $eligibleOn,
+                'eligible_on_formatted' => $eligibleOn->format('d M, Y'),
+                'progress_percent' => $progress,
+                'is_ready' => $isReady,
+                'state_text' => $isReady ? 'রক্তদানের জন্য প্রস্তুত' : "{$remainingDays} দিনের মধ্যে উপলব্ধ",
+                'bar_class' => $isReady ? 'bg-emerald-500' : 'bg-amber-500',
+                'text_class' => $isReady ? 'text-emerald-600' : 'text-amber-600',
+            ];
+        })->values();
+
+        // Recipient → নতুন user-dashboard layout ও view
+        return view('user.dashboard', compact(
             'totalRequestsMade',
             'fulfilledRequests',
             'totalContributions',
@@ -204,13 +248,7 @@ class DashboardController extends Controller
             'recentRequests',
             'pendingClaim',
             'ongoingCommitments',
-            'donationHistory',
-            'successfulDonationsCount',
-            'livesSaved',
             'districts',
-            'gamificationStats',
-            'radarRequests',
-            'showInactivePopup',
             'isDonor'
         ));
     }

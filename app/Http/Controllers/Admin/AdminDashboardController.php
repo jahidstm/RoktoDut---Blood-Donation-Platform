@@ -88,6 +88,12 @@ class AdminDashboardController extends Controller
         // 🏥 ১১. Unverified Hospitals Pending Review
         $pendingHospitals = Hospital::unverified()->count();
 
+        // ১২. Pending Reports
+        $pendingReports = \App\Models\Report::where('status', 'open')->count();
+
+        // 🚑 ১৩. Pending Ambulances
+        $pendingAmbulances = \App\Models\Ambulance::where('is_verified', false)->count();
+
         return view('admin.dashboard', compact(
             'totalUsers',
             'totalDonors',
@@ -104,7 +110,9 @@ class AdminDashboardController extends Controller
             'todaysSecurityEventsCount',
             'recentSecurityLogs',
             'pendingSupportMessages',
-            'pendingHospitals'
+            'pendingHospitals',
+            'pendingReports',
+            'pendingAmbulances'
         ));
     }
 
@@ -146,7 +154,7 @@ class AdminDashboardController extends Controller
         $pendingNids = User::with('district')
             ->where('nid_status', 'pending')
             ->whereNotNull('nid_path')
-            ->orderBy('updated_at', 'asc')
+            ->orderByDesc('updated_at')
             ->paginate(15)
             ->withQueryString();
 
@@ -169,7 +177,7 @@ class AdminDashboardController extends Controller
     {
         $pendingOrgs = \App\Models\Organization::with(['locationDistrict', 'locationUpazila'])
             ->where('status', 'pending')
-            ->orderBy('created_at', 'asc')
+            ->orderByDesc('created_at')
             ->paginate(12)
             ->withQueryString();
 
@@ -212,6 +220,9 @@ class AdminDashboardController extends Controller
                 'decision' => 'approve',
                 'nid_status' => $user->nid_status,
             ]);
+
+            $user->notify(new \App\Notifications\DonorVerificationStatusNotification('approved'));
+
             return back()->with('success', "✅ {$user->name}-এর NID ভেরিফাই সম্পন্ন হয়েছে। 'Verified Donor' ব্যাজ যুক্ত হয়েছে।");
         }
 
@@ -238,6 +249,9 @@ class AdminDashboardController extends Controller
             'nid_status' => $user->nid_status,
             'prior_rejection_count' => $rejectionCount,
         ]);
+
+        $user->notify(new \App\Notifications\DonorVerificationStatusNotification('rejected'));
+
         return back()->with('error', "❌ {$user->name}-এর NID ভেরিফিকেশন বাতিল হয়েছে।");
     }
 

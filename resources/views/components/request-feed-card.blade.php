@@ -15,25 +15,25 @@
     $verifiedCount = (int) ($request->verified_verifications_count ?? 0);
 
     $urgencyMap = [
-        'emergency' => ['label' => 'Emergency', 'cls' => 'bg-red-50 text-red-700 border-red-200'],
-        'urgent' => ['label' => 'Urgent', 'cls' => 'bg-amber-50 text-amber-700 border-amber-200'],
-        'normal' => ['label' => 'Normal', 'cls' => 'bg-slate-100 text-slate-700 border-slate-200'],
+        'emergency' => ['label' => 'ইমার্জেন্সি', 'cls' => 'bg-red-50 text-red-700 border-red-200'],
+        'urgent' => ['label' => 'আর্জেন্ট', 'cls' => 'bg-amber-50 text-amber-700 border-amber-200'],
+        'normal' => ['label' => 'নরমাল', 'cls' => 'bg-slate-100 text-slate-700 border-slate-200'],
     ];
     $urgencyInfo = $urgencyMap[$urgency] ?? $urgencyMap['normal'];
 
-    $statusLabel = 'Running';
+    $statusLabel = 'চলমান';
     $statusCls = 'bg-sky-50 text-sky-700 border-sky-200';
     if ($status === 'expired') {
-        $statusLabel = 'Cancelled';
+        $statusLabel = 'বাতিল';
         $statusCls = 'bg-rose-50 text-rose-700 border-rose-200';
     } elseif ($verifiedCount > 0 || $status === 'fulfilled') {
-        $statusLabel = 'Successful (Verified)';
+        $statusLabel = 'সফল (ভেরিফাইড)';
         $statusCls = 'bg-emerald-50 text-emerald-700 border-emerald-200';
     } elseif ($claimedCount > 0) {
-        $statusLabel = 'Claimed (In Review)';
+        $statusLabel = 'রিভিউতে আছে';
         $statusCls = 'bg-amber-50 text-amber-700 border-amber-200';
     } elseif ($acceptedCount > 0) {
-        $statusLabel = 'Donor Found';
+        $statusLabel = 'ডোনার পাওয়া গেছে';
         $statusCls = 'bg-indigo-50 text-indigo-700 border-indigo-200';
     }
 
@@ -47,27 +47,32 @@
     $myResponse = (!$isPublic && isset($request->responses)) ? $request->responses->first() : null;
 @endphp
 
-<article class="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+<article class="group flex flex-col h-full rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg scroll-reveal"
+         data-scroll-reveal>
     <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-            <div class="flex flex-wrap items-center gap-2">
-                <h3 class="text-lg font-black tracking-tight text-slate-900">
-                    {{ $bloodGroup }} রক্ত প্রয়োজন
-                </h3>
-                <span class="inline-flex h-7 items-center rounded-full border border-violet-200 bg-violet-50 px-3 text-xs font-extrabold text-violet-700">
-                    {{ $componentLabel }}
-                </span>
-                <span class="inline-flex h-7 items-center rounded-full border px-3 text-xs font-extrabold {{ $urgencyInfo['cls'] }}">
-                    {{ $urgencyInfo['label'] }}
-                </span>
+            <div class="flex flex-col gap-2">
+                <div class="flex flex-wrap items-center gap-2">
+                    <h3 class="text-base sm:text-lg font-black tracking-tight text-slate-900">
+                        {{ $bloodGroup }} রক্ত প্রয়োজন
+                    </h3>
+                    <span class="inline-flex h-7 items-center rounded-full border border-violet-200 bg-violet-50 px-3 text-xs font-extrabold text-violet-700">
+                        {{ $componentLabel }}
+                    </span>
+                </div>
+                <div>
+                    <span class="inline-flex h-7 items-center rounded-full border px-3 text-xs font-extrabold {{ $urgencyInfo['cls'] }}">
+                        {{ $urgencyInfo['label'] }}
+                    </span>
+                </div>
             </div>
         </div>
         <span class="inline-flex h-7 shrink-0 items-center rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700">
-            Units: {{ \App\Support\BanglaDate::digits((string) ($request->bags_needed ?? 1)) }}
+            ইউনিট: {{ \App\Support\BanglaDate::digits((string) ($request->bags_needed ?? 1)) }}
         </span>
     </div>
 
-    <div class="mt-3 space-y-1.5">
+    <div class="mt-3 space-y-1.5 flex-1">
         <p class="truncate text-sm font-semibold text-slate-800">
             {{ $request->hospital?->display_name ?: 'হাসপাতাল উল্লেখ নেই' }}
         </p>
@@ -89,20 +94,31 @@
             <p class="text-[11px] font-semibold text-slate-500">পোস্ট</p>
             <p class="mt-0.5 text-sm font-bold text-slate-800">{{ \App\Support\BanglaDate::relative($request->created_at) }}</p>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 sm:col-span-2 flex items-center justify-between">
-            <div>
-                <p class="text-[11px] font-semibold text-slate-500">যোগাযোগ</p>
-                @if($request->is_phone_hidden)
-                    <p class="mt-0.5 text-xs font-bold text-purple-700 flex items-center gap-1">
-                        🛡️ নম্বর সুরক্ষিত — ডোনাররা সরাসরি টেলিগ্রামে পাঠাবে
-                    </p>
-                @else
-                    <p class="mt-0.5 text-sm font-bold text-slate-800">
-                        <a href="tel:{{ $request->contact_number }}" class="text-red-600 hover:underline">{{ $request->contact_number }}</a>
-                    </p>
-                @endif
+    </div>
+
+    <hr class="my-4 border-slate-100">
+
+    <div class="mb-4">
+        @if($request->is_phone_hidden)
+            <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.955 11.955 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.249-8.25-3.285Z"/>
+                    </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs font-extrabold text-purple-700">নম্বর সুরক্ষিত 🛡️</p>
+                    <p class="text-[11px] font-medium text-purple-500 mt-0.5 leading-tight">ডোনাররা সরাসরি টেলিগ্রামে সাড়া পাঠাবে।</p>
+                </div>
             </div>
-        </div>
+        @else
+            <div class="flex items-center justify-between gap-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">মোবাইল নম্বর</p>
+                <a href="tel:{{ $request->contact_number }}" class="font-mono text-sm font-bold text-red-600 hover:text-red-700 hover:underline">
+                    {{ $request->contact_number }}
+                </a>
+            </div>
+        @endif
     </div>
 
     <div class="mt-3 flex items-center justify-between gap-2">
@@ -112,70 +128,70 @@
 
         @if($showRequester && $request->requester)
             <div class="text-[11px] font-medium text-slate-500">
-                Requester: <span class="font-semibold text-slate-700">{{ $request->requester->name }}</span>
+                রিকোয়েস্ট করেছেন: <span class="font-semibold text-slate-700">{{ $request->requester->name }}</span>
             </div>
         @endif
     </div>
 
     <div class="mt-4 flex flex-wrap gap-2">
         <a href="{{ $detailsUrl }}"
-           class="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">
-            View Details
+           class="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">
+            বিস্তারিত দেখুন
         </a>
 
         @if($isPublic)
             @guest
                 <a href="{{ route('login') }}?redirect={{ urlencode(route('public.requests.index')) }}"
-                   class="inline-flex h-10 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-black text-white transition hover:bg-red-700">
-                    Respond
+                   class="inline-flex h-11 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-black text-white transition hover:bg-red-700">
+                    সাড়া দিন
                 </a>
             @else
                 <a href="{{ $detailsUrl }}"
-                   class="inline-flex h-10 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-black text-white transition hover:bg-red-700">
-                    Respond
+                   class="inline-flex h-11 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-black text-white transition hover:bg-red-700">
+                    সাড়া দিন
                 </a>
             @endguest
         @else
             @if($isOwner && $isOpen)
                 <form method="POST" action="{{ route('requests.fulfill', $request) }}">
                     @csrf
-                    <button class="inline-flex h-10 items-center justify-center rounded-xl bg-emerald-600 px-4 text-sm font-black text-white transition hover:bg-emerald-700">
-                        Complete
+                    <button class="inline-flex h-11 items-center justify-center rounded-xl bg-emerald-600 px-4 text-sm font-black text-white transition hover:bg-emerald-700">
+                        সম্পন্ন করুন
                     </button>
                 </form>
                 <a href="{{ $detailsUrl }}"
-                   class="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100">
-                    Manage
+                   class="inline-flex h-11 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100">
+                    ম্যানেজ করুন
                 </a>
             @elseif(!$isOwner && $isOpen)
                 @if($myResponse && $myResponse->status === 'accepted')
-                    <span class="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-bold text-emerald-700">
-                        Response Sent
+                    <span class="inline-flex h-11 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-bold text-emerald-700">
+                        সাড়া পাঠানো হয়েছে
                     </span>
                     <a href="{{ $detailsUrl }}"
-                       class="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-200 bg-white px-4 text-sm font-bold text-emerald-700 transition hover:bg-emerald-50">
-                        Manage
+                       class="inline-flex h-11 items-center justify-center rounded-xl border border-emerald-200 bg-white px-4 text-sm font-bold text-emerald-700 transition hover:bg-emerald-50">
+                        ম্যানেজ করুন
                     </a>
                 @elseif($myResponse && $myResponse->status === 'declined')
                     <a href="{{ $detailsUrl }}"
-                       class="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50">
-                        Manage
+                       class="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50">
+                        ম্যানেজ করুন
                     </a>
                 @else
                     <form method="POST" action="{{ route('requests.respond', $request) }}">
                         @csrf
                         <input type="hidden" name="status" value="accepted" />
-                        <button class="inline-flex h-10 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                        <button class="inline-flex h-11 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                                 @disabled(!(auth()->check() && auth()->user()->is_eligible_to_donate))
                                 title="{{ auth()->check() && !auth()->user()->is_eligible_to_donate ? 'আপনি রক্তদানের যোগ্য নন' : '' }}">
-                            Respond
+                            সাড়া দিন
                         </button>
                     </form>
                 @endif
             @elseif(($status === 'fulfilled' || $verifiedCount > 0) && auth()->check() && (auth()->id() === (int) $request->requested_by || auth()->user()->role === 'admin'))
                 <a href="{{ $detailsUrl }}"
-                   class="inline-flex h-10 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-black text-white transition hover:bg-indigo-700">
-                    View Proof
+                   class="inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-black text-white transition hover:bg-indigo-700">
+                    প্রমাণ দেখুন
                 </a>
             @endif
         @endif

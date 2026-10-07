@@ -22,7 +22,8 @@
     $canRequest = auth()->check() && ((auth()->user()->role?->value ?? auth()->user()->role) === 'recipient');
 @endphp
 
-<article class="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-red-200 hover:shadow-lg"
+<article class="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-red-200 hover:shadow-lg scroll-reveal"
+         data-scroll-reveal
          data-donor-card
          data-donor-id="{{ $donor->id }}"
          data-reveal-start-url="{{ route('donors.reveal.start', $donor->id) }}"
@@ -50,22 +51,25 @@
         </span>
     </div>
 
-    <div class="mt-3 flex flex-wrap gap-2">
-        @if($isAvailableNow)
-            <span class="inline-flex h-7 items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700">Available</span>
-        @endif
-        @if($isOrgVerified)
-            <span class="inline-flex h-7 items-center rounded-full border border-blue-200 bg-blue-50 px-3 text-xs font-bold text-blue-700">Org Verified</span>
-        @endif
-        @if($isNidVerified)
-            <span class="inline-flex h-7 items-center rounded-full border border-teal-200 bg-teal-50 px-3 text-xs font-bold text-teal-700">NID Verified</span>
-        @endif
-        @if($isPlateletReady)
-            <span class="inline-flex h-7 items-center rounded-full border border-fuchsia-200 bg-fuchsia-50 px-3 text-xs font-bold text-fuchsia-700">Platelet Ready</span>
-        @endif
-        @if(!$isAvailableNow && !$isOrgVerified && !$isNidVerified && !$isPlateletReady)
-            <span class="inline-flex h-7 items-center rounded-full border border-slate-200 bg-slate-100 px-3 text-xs font-bold text-slate-700">Regular</span>
-        @endif
+    @php
+        $badges = [];
+        if($isAvailableNow) $badges[] = '<span class="inline-flex h-7 shrink-0 items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700">Available</span>';
+        if($isOrgVerified) $badges[] = '<span class="inline-flex h-7 shrink-0 items-center rounded-full border border-blue-200 bg-blue-50 px-3 text-xs font-bold text-blue-700">Org Verified</span>';
+        if($isNidVerified) $badges[] = '<span class="inline-flex h-7 shrink-0 items-center rounded-full border border-teal-200 bg-teal-50 px-3 text-xs font-bold text-teal-700">NID Verified</span>';
+        if($isPlateletReady) $badges[] = '<span class="inline-flex h-7 shrink-0 items-center rounded-full border border-fuchsia-200 bg-fuchsia-50 px-3 text-xs font-bold text-fuchsia-700">Platelet Ready</span>';
+        
+        if(empty($badges)) {
+            $badges[] = '<span class="inline-flex h-7 shrink-0 items-center rounded-full border border-slate-200 bg-slate-100 px-3 text-xs font-bold text-slate-700">Regular</span>';
+        }
+        
+        // Take max 3 badges
+        $badges = array_slice($badges, 0, 3);
+    @endphp
+
+    <div class="mt-3 flex flex-wrap gap-2 h-7 overflow-hidden">
+        @foreach($badges as $badge)
+            {!! $badge !!}
+        @endforeach
     </div>
 
     <div class="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
@@ -125,7 +129,7 @@
                 </button>
             </div>
 
-            <p class="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 js-inline-error {{ $showInlineError ? '' : 'hidden' }}">
+            <p class="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 js-inline-error break-words {{ $showInlineError ? '' : 'hidden' }}">
                 {{ $showInlineError ? session('error') : '' }}
             </p>
         @endif

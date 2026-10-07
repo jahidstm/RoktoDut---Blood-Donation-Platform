@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ProfileController extends Controller
 {
@@ -55,6 +56,16 @@ class ProfileController extends Controller
             'organizations'     => \App\Models\Organization::orderBy('name', 'asc')->get(),
             'completionPercent' => $completion['percent'],
             'completionSteps'   => $completion['steps'],
+        ]);
+    }
+
+    /**
+     * রক্তদাতা হিসেবে আপগ্রেড করার ফর্ম
+     */
+    public function upgradeForm(Request $request): View
+    {
+        return view('profile.upgrade', [
+            'user' => $request->user(),
         ]);
     }
 
@@ -309,6 +320,32 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
+        // 🛡️ Data Privacy: ডিলিট করার আগে সেন্সিটিভ ফাইলগুলো স্টোরেজ থেকে মুছে ফেলা
+        if ($user->nid_path && \Illuminate\Support\Facades\Storage::disk('private')->exists($user->nid_path)) {
+            \Illuminate\Support\Facades\Storage::disk('private')->delete($user->nid_path);
+        }
+
+        // 🛡️ Data Privacy: ডোনারের আপলোড করা প্রমাণাদি (Offline / Online) মুছে ফেলা
+        $responsesWithProofs = \App\Models\BloodRequestResponse::where('user_id', $user->id)
+            ->whereNotNull('proof_image_path')
+            ->get();
+            
+        foreach ($responsesWithProofs as $response) {
+            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($response->proof_image_path)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($response->proof_image_path);
+            }
+        }
+
+        $offlineClaimsWithProofs = \App\Models\OfflineDonationClaim::where('donor_id', $user->id)
+            ->whereNotNull('proof_path')
+            ->get();
+            
+        foreach ($offlineClaimsWithProofs as $claim) {
+            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($claim->proof_path)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($claim->proof_path);
+            }
+        }
+
         Auth::logout();
         $user->delete();
 
@@ -459,5 +496,17 @@ class ProfileController extends Controller
         return redirect()->route('dashboard')
             ->with('status', 'donor-upgraded')
             ->with('success_msg', 'অভিনন্দন! আপনি এখন সফলভাবে রক্তদাতা হিসেবে যুক্ত হয়েছেন।');
+    }
+
+    public function avatar(User $user): BinaryFileResponse
+    {
+        $path = (string) $user->profile_image;
+        if ($path === '' || !Storage::disk('public')->exists($path)) {
+            abort(404);
+        }
+
+        return response()->file(Storage::disk('public')->path($path), [
+            'Cache-Control' => 'public, max-age=86400',
+        ]);
     }
 }

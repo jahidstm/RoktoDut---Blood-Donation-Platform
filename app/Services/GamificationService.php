@@ -155,9 +155,21 @@ class GamificationService
 
         // ─── ১. ডোনেশন কাউন্ট ও তারিখ আপডেট ──────────────────────────
         $donor->increment('total_verified_donations');
+        $component = $bloodRequest->component_type instanceof \App\Enums\BloodComponentType
+            ? $bloodRequest->component_type->value
+            : (string) $bloodRequest->component_type;
+
+        $cooldownDays = match ($component) {
+            'platelets' => 14,
+            'plasma' => 28,
+            default => strtolower((string)$donor->gender) === 'male' ? 90 : 120,
+        };
+
         $donor->update([
             'last_donated_at' => now()->toDateString(),
-            'is_available' => false,
+            'cooldown_until'  => now()->addDays($cooldownDays)->toDateString(),
+            'is_available'    => false,
+            'reminder_stage'  => 0, // State machine reset: নতুন cooldown শুরু হলে পূর্ববর্তী reminder history মুছে যায়
         ]);
         $this->handleReadyNowBadge($donor, false);
         $donor->refresh();
@@ -220,6 +232,9 @@ class GamificationService
                 $this->checkAndAwardBadges($referrer);
             }
         }
+
+        // ─── ৬. Donation Certificate Issue ──────────────────────────────────
+        $this->issueCertificate($donor, $bloodRequest->id, null);
     }
 
     public function processOfflineDonationReward(
@@ -236,9 +251,18 @@ class GamificationService
         $this->enforceDonationCooldownForDate($donor, $donationDate);
 
         $donor->increment('total_verified_donations');
+        $component = $bloodRequest ? ($bloodRequest->component_type instanceof \App\Enums\BloodComponentType ? $bloodRequest->component_type->value : (string) $bloodRequest->component_type) : 'whole_blood';
+        $cooldownDays = match ($component) {
+            'platelets' => 14,
+            'plasma' => 28,
+            default => strtolower((string)$donor->gender) === 'male' ? 90 : 120,
+        };
+
         $donor->update([
             'last_donated_at' => $donationDate->toDateString(),
-            'is_available' => false,
+            'cooldown_until'  => $donationDate->copy()->addDays($cooldownDays)->toDateString(),
+            'is_available'    => false,
+            'reminder_stage'  => 0, // State machine reset: offline donation approve হলেও reminder restart
         ]);
         $this->handleReadyNowBadge($donor, false);
         $donor->refresh();
@@ -260,19 +284,75 @@ class GamificationService
         );
 
         $this->updateMonthlyPoints($donor, $points);
-        
+
         $donor->notify(new \App\Notifications\GamificationRewardNotification(
             title: '✅ অফলাইন রক্তদান ভেরিফাইড!',
             message: "আপনার অফলাইন রক্তদানের ক্লেইমটি সফলভাবে ভেরিফাই হয়েছে এবং আপনি {$points} পয়েন্ট পেয়েছেন!",
             points: $points
         ));
-        
+
         $this->checkAndAwardBadges($donor);
+
+        // ─── Certificate Issue (Offline) ──────────────────────────────────
+        $this->issueCertificate($donor, $bloodRequest?->id, $donationDate);
+    }
+
+    // ==========================================
+    // Certificate Issuance
+    // ==========================================
+
+    /**
+     * Donation verify হলে একটি unique certificate token assign করো এবং donor-কে notify করো।
+     * Idempotent: ইতোমধ্যে token থাকলে আর কিছু করবে না।
+     *
+     * @param User        $donor
+     * @param int|null    $bloodRequestId
+     * @param Carbon|null $donationDate  (offline claim-এর জন্য)
+     */
+    private function issueCertificate(User $donor, ?int $bloodRequestId, ?Carbon $donationDate): void
+    {
+        try {
+            // Find the most recent donation record for this donor + request
+            $donation = \App\Models\Donation::where('donor_id', $donor->id)
+                ->when($bloodRequestId, fn($q) => $q->where('blood_request_id', $bloodRequestId))
+                ->latest()
+                ->first();
+
+            if (!$donation || $donation->certificate_token) {
+                return; // Already issued or no donation record
+            }
+
+            // Collision-safe unique token (32-char hex)
+            do {
+                $token = bin2hex(random_bytes(16));
+            } while (\App\Models\Donation::where('certificate_token', $token)->exists());
+
+            $donation->update([
+                'certificate_token'          => $token,
+                'certificate_generated_at'   => now(),
+            ]);
+
+            // In-app notification
+            $donor->notify(new \App\Notifications\CertificateIssuedNotification($donation->fresh()));
+
+            Log::info('[Certificate] Issued for donation.', [
+                'donor_id'    => $donor->id,
+                'donation_id' => $donation->id,
+                'token'       => substr($token, 0, 8) . '...',
+            ]);
+        } catch (\Throwable $e) {
+            // Certificate failure should NOT break the donation flow
+            Log::error('[Certificate] Failed to issue certificate.', [
+                'donor_id' => $donor->id,
+                'error'    => $e->getMessage(),
+            ]);
+        }
     }
 
     // ==========================================
     // Anti-Cheat: কুলডাউন এনফোর্সমেন্ট
     // ==========================================
+
 
     /**
      * ১২০-দিনের জৈবিক কুলডাউন নিশ্চিত করে।
@@ -470,7 +550,7 @@ class GamificationService
             // Send notification for badge unlock
             $user->notify(new \App\Notifications\GamificationRewardNotification(
                 title: '🏅 নতুন ব্যাজ আনলক হয়েছে!',
-                message: "অভিনন্দন! আপনি '{$badge->name_bn}' ব্যাজটি অর্জন করেছেন।",
+                message: "অভিনন্দন! আপনি '{$badge->bn_name}' ব্যাজটি অর্জন করেছেন।",
                 points: 0 // No points, just a badge
             ));
         }
@@ -495,13 +575,24 @@ class GamificationService
         if ($time === 'monthly')  $time = 'month';
         if ($scope === 'national') $scope = 'bd';
 
-        $query = User::where('role', 'donor')
+        $query = User::select([
+            'id',
+            'name',
+            'profile_image',
+            'blood_group',
+            'total_verified_donations',
+            'points',
+            'monthly_points',
+            'monthly_points_month',
+            'district_id',
+        ])
+            ->where('role', 'donor')
             ->notShadowbanned()
             ->where(function ($q) {
                 $q->where('total_verified_donations', '>', 0)
                     ->orWhere('points', '>', 0);
             })
-            ->with(['badges', 'district']);
+            ->with(['badges:id,name,bn_name', 'district:id,name']);
 
         // অঞ্চল ফিল্টার
         if ($scope === 'district' && $districtId) {

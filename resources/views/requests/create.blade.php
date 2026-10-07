@@ -1,4 +1,19 @@
-@extends('layouts.app')
+@php
+    $layout = 'layouts.app';
+    if(auth()->check()){
+        $u = auth()->user();
+        if($u->isAdmin()) {
+            $layout = 'layouts.admin-dashboard';
+        } elseif($u->isOrgAdmin()) {
+            $layout = 'layouts.org-dashboard';
+        } elseif($u->isDonor()) {
+            $layout = 'layouts.donor-dashboard';
+        } else {
+            $layout = 'layouts.user-dashboard';
+        }
+    }
+@endphp
+@extends($layout)
 
 @section('title', 'নতুন রক্তের রিকোয়েস্ট — রক্তদূত')
 
@@ -13,11 +28,10 @@
 
 @section('content')
 {{-- 🎯 THE FIX: ফর্মটি মাঝখানে রাখতে এবং উপরে-নিচে পর্যাপ্ত শ্বাস নেওয়ার জায়গা (Breathing Space) দিতে px-4 sm:px-6 lg:px-8 py-10 যোগ করা হলো --}}
-<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    @include('partials.pilot-banner')
+<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8" data-panel-id="new-request">
 
-    <h1 class="text-2xl font-extrabold tracking-tight text-slate-900">নতুন রক্তের রিকোয়েস্ট</h1>
-    <p class="text-slate-500 font-medium mt-1">সঠিক তথ্য দিলে দ্রুত ডোনার রেসপন্স পাবে।</p>
+    <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 scroll-reveal" data-scroll-reveal>নতুন রক্তের রিকোয়েস্ট</h1>
+    <p class="text-slate-500 font-medium mt-1 scroll-reveal" data-scroll-reveal>সঠিক তথ্য দিলে দ্রুত ডোনার রেসপন্স পাবে।</p>
 
     @if(session('existing_request_url'))
         <div class="mt-4">
@@ -28,7 +42,7 @@
         </div>
     @endif
 
-    <div class="mt-8 rounded-3xl border border-slate-200 bg-white p-6 md:p-8 shadow-sm relative overflow-hidden">
+    <div class="mt-8 rounded-3xl border border-slate-200 bg-white p-6 md:p-8 shadow-sm relative overflow-hidden scroll-reveal" data-scroll-reveal>
         <div class="absolute top-0 left-0 w-2 h-full bg-red-600"></div>
         
         {{-- 🎯 ফর্মের সাথে Alpine.js x-data যোগ করা হলো --}}
@@ -265,15 +279,19 @@
 
             <x-captcha-field :captcha-question="$captchaQuestion" />
 
-            <div class="flex items-center gap-4 pt-4 border-t border-slate-100">
+            <div class="grid grid-cols-2 gap-3 sm:gap-4 pt-6 border-t border-slate-100">
+                <a href="{{ route('requests.index') }}" class="w-full flex items-center justify-center px-4 sm:px-8 py-3.5 rounded-xl font-bold text-slate-700 bg-white border-2 border-slate-200 hover:bg-slate-50 transition whitespace-nowrap text-[13px] sm:text-sm">
+                    বাতিল
+                </a>
+                
                 {{-- 🎯 ডাইনামিক সাবমিট বাটন --}}
                 <button type="submit" 
                         :disabled="isSubmitting"
-                        class="bg-red-600 hover:bg-red-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white px-8 py-3.5 rounded-xl text-sm font-black transition-all shadow-sm shadow-red-200 flex items-center justify-center min-w-[200px]">
+                        class="w-full bg-red-600 hover:bg-red-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white px-3 sm:px-8 py-3.5 rounded-xl text-[13px] sm:text-sm font-black transition-all shadow-sm shadow-red-200 flex items-center justify-center whitespace-nowrap">
                     
                     <span x-show="!isSubmitting" class="flex items-center gap-2">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
-                        রিকোয়েস্ট সাবমিট করুন
+                        সাবমিট করুন
                     </span>
 
                     <span x-show="isSubmitting" style="display: none;" class="flex items-center gap-2">
@@ -281,13 +299,9 @@
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        প্রসেসিং হচ্ছে...
+                        প্রসেসিং...
                     </span>
                 </button>
-                
-                <a href="{{ route('requests.index') }}" class="px-6 py-3.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition">
-                    বাতিল
-                </a>
             </div>
         </form>
     </div>
@@ -296,10 +310,8 @@
 @endsection
 
 @push('scripts')
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/WLs=" crossorigin=""></script>
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+(function initCreateRequest() {
     const urgencySelect = document.getElementById('urgency');
     const neededAtInput = document.getElementById('needed_at');
     const note = document.getElementById('urgency-threshold-note');
@@ -349,10 +361,13 @@ document.addEventListener('DOMContentLoaded', function () {
     updateUrgencyAvailability();
 
     // 📍 Leaflet Map Initialization
-    let map = L.map('hospital-map').setView([23.8103, 90.4125], 7);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+    function initMap() {
+        if (!document.getElementById('hospital-map')) return;
+        
+        let map = L.map('hospital-map').setView([23.8103, 90.4125], 7);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
 
     let marker = null;
     const latInput = document.getElementById('input-latitude');
@@ -383,26 +398,41 @@ document.addEventListener('DOMContentLoaded', function () {
         setMarker(e.latlng.lat, e.latlng.lng);
     });
 
-    document.getElementById('use-my-location').addEventListener('click', function() {
-        if (!navigator.geolocation) {
-            alert('আপনার ব্রাউজার লোকেশন সাপোর্ট করে না।');
-            return;
-        }
-        const originalText = this.innerHTML;
-        this.innerHTML = 'খুঁজছি...';
-        navigator.geolocation.getCurrentPosition(
-            position => {
-                setMarker(position.coords.latitude, position.coords.longitude);
-                map.setView([position.coords.latitude, position.coords.longitude], 15);
-                this.innerHTML = originalText;
-            },
-            () => {
-                alert('লোকেশন পাওয়া যায়নি। দয়া করে ম্যাপে ক্লিক করে পিন বসান।');
-                this.innerHTML = originalText;
+        document.getElementById('use-my-location').addEventListener('click', function() {
+            if (!navigator.geolocation) {
+                alert('আপনার ব্রাউজার লোকেশন সাপোর্ট করে না।');
+                return;
             }
-        );
-    });
-});
+            const originalText = this.innerHTML;
+            this.innerHTML = 'খুঁজছি...';
+            navigator.geolocation.getCurrentPosition(
+                position => {
+                    setMarker(position.coords.latitude, position.coords.longitude);
+                    map.setView([position.coords.latitude, position.coords.longitude], 15);
+                    this.innerHTML = originalText;
+                },
+                () => {
+                    alert('লোকেশন পাওয়া যায়নি। দয়া করে ম্যাপে ক্লিক করে পিন বসান।');
+                    this.innerHTML = originalText;
+                }
+            );
+        });
+    }
+
+    if (typeof L === 'undefined') {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(link);
+
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        script.onload = initMap;
+        document.head.appendChild(script);
+    } else {
+        initMap();
+    }
+})();
 </script>
 
 {{-- 🏥 Hospital Autocomplete Alpine Component --}}

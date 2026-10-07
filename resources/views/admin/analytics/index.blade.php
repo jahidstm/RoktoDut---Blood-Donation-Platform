@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.admin-dashboard')
 
 @section('title', 'অ্যানালিটিক্স ড্যাশবোর্ড — রক্তদূত অ্যাডমিন')
 
@@ -15,7 +15,7 @@
     $bn = fn ($value) => \App\Support\BanglaDate::digits((string) ($value ?? 0));
 @endphp
 
-<div class="max-w-7xl mx-auto px-4 py-8"
+<div data-panel-id="analytics" class="max-w-7xl mx-auto px-4 py-8"
      x-data="analyticsDashboard(@js($bloodGroupData), @js($monthlyTrend))"
      x-init="initCharts()">
 
@@ -53,6 +53,33 @@
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500">আনুমানিক বাঁচানো জীবন</p>
             <p class="mt-2 text-3xl font-black text-emerald-600">{{ $bn($summary['lives_saved_estimate'] ?? 0) }}</p>
+        </div>
+    </div>
+
+    {{-- 🗺️ Geo-Spatial Heatmap Link --}}
+    <div class="mb-8">
+        <div class="rounded-3xl border border-teal-200 bg-teal-50/30 p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 shadow-sm relative overflow-hidden">
+            <div class="absolute -right-8 -top-8 w-40 h-40 bg-teal-100 rounded-full blur-3xl opacity-50"></div>
+            <div class="relative z-10 flex items-start gap-4">
+                <div class="w-14 h-14 rounded-2xl bg-white text-teal-600 flex items-center justify-center text-3xl shrink-0 shadow-sm border border-teal-100">
+                    🗺️
+                </div>
+                <div>
+                    <h2 class="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                        Geo-Spatial Demand Heatmap
+                        <span class="bg-teal-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">Live</span>
+                    </h2>
+                    <p class="text-slate-600 font-medium mt-1 text-sm max-w-2xl">
+                        বাংলাদেশের ৬৪টি জেলার রিয়েল-টাইম রক্তের চাহিদা এবং <strong class="text-slate-800">Donor Fatigue Index (DFI)</strong> এর সমন্বয়ে তৈরি <strong class="text-slate-800">Composite Risk Score (CRS)</strong> ম্যাপ ভিজ্যুয়ালাইজ করুন।
+                    </p>
+                </div>
+            </div>
+            <div class="relative z-10 shrink-0">
+                <a href="{{ route('admin.heatmap.index') }}" class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-extrabold px-6 py-3.5 rounded-xl shadow-md transition-all hover:scale-105 active:scale-95">
+                    হীটম্যাপ খুলুন
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                </a>
+            </div>
         </div>
     </div>
 

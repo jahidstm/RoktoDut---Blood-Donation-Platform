@@ -1,22 +1,22 @@
 @extends('layouts.app')
 
-@section('title', 'যোগাযোগ করুন — রক্তদূত')
+@section('title', 'কন্টাক্ট করুন — রক্তদূত')
 
 @section('content')
 
 {{-- ══════════════════════════════════════════════════════════
      HERO
 ══════════════════════════════════════════════════════════ --}}
-<section class="relative overflow-hidden bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800">
+<section class="relative overflow-hidden bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800 scroll-reveal" data-scroll-reveal>
     <div class="absolute top-0 right-0 w-96 h-96 bg-red-600/10 rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none blur-3xl"></div>
     <div class="absolute bottom-0 left-0 w-72 h-72 bg-red-500/8 rounded-full translate-y-1/2 -translate-x-1/4 pointer-events-none blur-2xl"></div>
 
-    <div class="relative mx-auto max-w-5xl px-4 py-12 sm:py-14">
+    <div class="relative mx-auto max-w-5xl px-4 py-12 sm:py-14 scroll-reveal" data-scroll-reveal>
         <div class="flex items-center gap-3 mb-3">
             <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-xl">✉️</div>
             <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">সাপোর্ট সেন্টার</span>
         </div>
-        <h1 class="text-2xl sm:text-3xl font-black text-white leading-tight">যোগাযোগ করুন</h1>
+        <h1 class="text-2xl sm:text-3xl font-black text-white leading-tight">কন্টাক্ট করুন</h1>
         <p class="mt-2 text-slate-400 text-sm font-medium max-w-xl leading-relaxed">
             প্রশ্ন, পরামর্শ বা প্রযুক্তিগত সমস্যা — আমাদের দল সবসময় আপনার পাশে আছে।
         </p>
@@ -32,10 +32,10 @@
         {{-- ════════════════════════════════════════════════
              LEFT — Support Info
         ════════════════════════════════════════════════ --}}
-        <div class="space-y-7">
+        <div class="space-y-7 order-2 lg:order-1">
 
             {{-- What to write --}}
-            <div>
+            <div class="scroll-reveal" data-scroll-reveal>
                 <h2 class="text-base font-black text-slate-900 mb-4 flex items-center gap-2">
                     <span class="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center text-sm shrink-0">📝</span>
                     কী কী বিষয়ে লিখতে পারেন
@@ -73,7 +73,7 @@
             </div>
 
             {{-- Response Time --}}
-            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm scroll-reveal" data-scroll-reveal>
                 <h3 class="text-sm font-black text-slate-800 mb-4 flex items-center gap-2">
                     <span class="text-base">⏱️</span> সম্ভাব্য রেসপন্স সময়
                 </h3>
@@ -96,8 +96,8 @@
                 </div>
             </div>
 
-            {{-- Emergency notice --}}
-            <div class="rounded-2xl border border-red-200 bg-red-50 p-5">
+            {{-- Emergency notice (Desktop Only) --}}
+            <div class="rounded-2xl border border-red-200 bg-red-50 p-5 hidden lg:block scroll-reveal" data-scroll-reveal>
                 <p class="text-sm font-black text-red-800 mb-2 flex items-center gap-2">
                     <span>🚨</span> জরুরি অবস্থায় কী করবেন?
                 </p>
@@ -117,9 +117,27 @@
         {{-- ════════════════════════════════════════════════
              RIGHT — Form Card
         ════════════════════════════════════════════════ --}}
-        <div>
-            <div class="rounded-2xl border border-slate-200 bg-white shadow-md overflow-hidden"
-                 x-data="{
+        <div class="order-1 lg:order-2 flex flex-col gap-6 lg:block lg:space-y-0">
+            
+            {{-- Emergency notice (Mobile Only) --}}
+            <div class="rounded-2xl border border-red-200 bg-red-50 p-5 lg:hidden scroll-reveal" data-scroll-reveal>
+                <p class="text-sm font-black text-red-800 mb-2 flex items-center gap-2">
+                    <span>🚨</span> জরুরি অবস্থায় কী করবেন?
+                </p>
+                <p class="text-sm text-red-700 leading-relaxed font-medium">
+                    রক্তের জরুরি প্রয়োজনে এই ফর্মে নয় — সরাসরি
+                    <strong>রক্তের অনুরোধ</strong> করুন অথবা জাতীয় হেল্পলাইন
+                    <strong>১৬৪৩০</strong> বা নিকটস্থ হাসপাতালের ব্লাড ব্যাংকে যোগাযোগ করুন।
+                </p>
+                <a href="{{ route('requests.create') }}"
+                   class="mt-3 inline-flex items-center gap-1.5 text-sm font-bold text-red-700 hover:text-red-900 underline underline-offset-2 transition-colors">
+                    🩸 রক্তের অনুরোধ করুন →
+                </a>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-md overflow-hidden scroll-reveal"
+                 data-scroll-reveal
+                  x-data="{
                      loading:   false,
                      charCount: {{ strlen(old('message', '')) }},
                      maxChars:  2000,
@@ -132,7 +150,7 @@
                 {{-- Card header --}}
                 <div class="bg-gradient-to-r from-red-600 to-rose-600 px-6 py-5">
                     <p class="text-white font-black text-base flex items-center gap-2">
-                        📬 বার্তা পাঠান
+                        📬 ম্যাসেজ পাঠান
                     </p>
                     <p class="text-red-100 text-xs mt-0.5 font-medium">
                         তারকা (<span class="font-black">*</span>) চিহ্নিত ঘরগুলো পূরণ বাধ্যতামূলক।
@@ -267,12 +285,12 @@
                         {{-- ── Message textarea ── --}}
                         <div>
                             <label for="c-message" class="cf-label">
-                                বার্তা <span class="text-red-500">*</span>
+                                ম্যাসেজ <span class="text-red-500">*</span>
                             </label>
                             <textarea id="c-message" name="message"
                                       rows="5"
                                       maxlength="2000"
-                                      placeholder="আপনার সমস্যা বা বার্তা বিস্তারিত লিখুন... (কমপক্ষে ২০ অক্ষর)"
+                                      placeholder="আপনার সমস্যা বা ম্যাসেজ বিস্তারিত লিখুন... (কমপক্ষে ২০ অক্ষর)"
                                       @input="charCount = $event.target.value.length"
                                       class="cf-input resize-none @error('message') cf-error @enderror">{{ old('message') }}</textarea>
                             <div class="flex items-center justify-between mt-1.5">
@@ -302,11 +320,11 @@
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                             </svg>
-                            <span x-text="loading ? 'পাঠানো হচ্ছে...' : '📬 বার্তা পাঠান'">📬 বার্তা পাঠান</span>
+                            <span x-text="loading ? 'পাঠানো হচ্ছে...' : '📬 ম্যাসেজ পাঠান'">📬 ম্যাসেজ পাঠান</span>
                         </button>
 
                         <p class="text-center text-xs text-slate-400 font-medium leading-relaxed">
-                            বার্তা পাঠিয়ে আপনি আমাদের
+                            ম্যাসেজ পাঠিয়ে আপনি আমাদের
                             <a href="{{ route('privacy') }}" class="underline hover:text-red-600 transition-colors">প্রাইভেসি পলিসি</a>-তে সম্মত হচ্ছেন।
                         </p>
                     </form>
@@ -315,7 +333,7 @@
             </div>
 
             {{-- Quick info strip --}}
-            <div class="mt-4 grid grid-cols-2 gap-3">
+            <div class="lg:mt-4 grid grid-cols-2 gap-3 scroll-reveal" data-scroll-reveal>
                 <a href="mailto:support@roktodut.com"
                    class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 hover:border-red-200 hover:bg-red-50/30 transition-colors shadow-sm group">
                     <div class="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-sm shrink-0 group-hover:bg-red-200 transition-colors">✉️</div>

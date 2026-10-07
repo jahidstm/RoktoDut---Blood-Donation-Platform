@@ -1,9 +1,9 @@
-@extends('layouts.app')
+@extends('layouts.admin-dashboard')
 
 @section('title', 'ব্লগ মডারেশন কিউ | রক্তদূত অ্যাডমিন')
 
 @section('content')
-<div class="max-w-6xl mx-auto px-4 py-8">
+<div data-panel-id="blog-moderation" class="max-w-6xl mx-auto px-4 py-8">
     <div class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
             <h1 class="text-2xl font-extrabold text-slate-900 flex items-center gap-2">
@@ -100,8 +100,11 @@
                             <span class="inline-flex items-center gap-1 bg-amber-100 text-amber-700 text-xs font-extrabold px-2.5 py-1 rounded-full">
                                 ⏳ পেন্ডিং রিভিউ
                             </span>
-                            <p class="text-xs text-slate-400 font-medium mt-1">
-                                {{ $post->created_at->locale('bn')->diffForHumans() }}
+                            <span class="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold px-2.5 py-1 rounded-full">
+                                🕐 {{ $post->created_at->diffForHumans() }}
+                            </span>
+                            <p class="text-[10px] text-slate-400 font-medium mt-1" title="{{ $post->created_at->format('d M Y, h:i A') }}">
+                                {{ $post->created_at->format('d M Y') }}
                             </p>
                         </div>
                     </div>

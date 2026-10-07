@@ -7,14 +7,14 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {{-- Page Title (matching Smart Donor Search style) --}}
-        <div class="mb-8">
+        <div class="mb-8 scroll-reveal" data-scroll-reveal>
             <h1 class="text-2xl sm:text-3xl font-black text-slate-900 border-l-4 border-red-600 pl-4">
                 জরুরি রক্তের অনুরোধ
             </h1>
         </div>
 
         {{-- Filter Section (matching Smart Donor Search filter card style) --}}
-        <div class="bg-white border border-slate-200 rounded-2xl p-6 mb-8 shadow-sm"
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 mb-8 shadow-sm scroll-reveal" data-scroll-reveal
              x-data="{
                 loading: false,
                 search: new URLSearchParams(location.search).get('search') || '',
@@ -46,10 +46,10 @@
 
             <p class="text-sm font-bold text-slate-500 mb-5 uppercase tracking-wider">ফিল্টার করুন</p>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+            <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 items-end">
 
                 {{-- Live Search --}}
-                <div>
+                <div class="col-span-2 lg:col-span-1">
                     <label class="block text-xs font-bold text-slate-600 mb-1.5">রোগী / হাসপাতাল</label>
                     <div class="relative">
                         <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
@@ -90,7 +90,7 @@
                 </div>
 
                 {{-- Component --}}
-                <div>
+                <div class="col-span-2 lg:col-span-1">
                     <label class="block text-xs font-bold text-slate-600 mb-1.5">রক্তের ধরন</label>
                     <select x-model="component_type" @change="fetchResults()"
                             class="w-full rounded-xl border border-slate-300 focus:border-red-500 focus:ring-1 focus:ring-red-500 text-sm font-medium text-slate-700 py-2.5 px-3 transition-all bg-white">
@@ -103,7 +103,7 @@
                 </div>
 
                 {{-- Search Button --}}
-                <div class="space-y-2">
+                <div class="col-span-2 lg:col-span-1 space-y-2 flex flex-col sm:flex-row gap-2 sm:space-y-0 lg:flex-col lg:space-y-2">
                     <button @click="dengue_mode = !dengue_mode; if (dengue_mode) component_type='{{ \App\Enums\BloodComponentType::PLATELETS->value }}'; fetchResults();"
                             type="button"
                             :class="dengue_mode ? 'bg-fuchsia-600 hover:bg-fuchsia-700 text-white' : 'bg-fuchsia-50 hover:bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-200'"
@@ -133,7 +133,7 @@
 
         {{-- Flash message --}}
         @if(session('login_required'))
-            <div class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3">
+            <div class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 scroll-reveal" data-scroll-reveal>
                 <svg class="w-5 h-5 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                 </svg>
@@ -142,7 +142,7 @@
         @endif
 
         {{-- Results header --}}
-        <div class="flex items-center justify-between mb-5">
+        <div class="flex items-center justify-between mb-5 scroll-reveal" data-scroll-reveal>
             <h2 class="text-lg font-black text-slate-800">সার্চ ফলাফল</h2>
             <span class="text-sm font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
                 মোট: {{ $requests->total() }} টি অনুরোধ

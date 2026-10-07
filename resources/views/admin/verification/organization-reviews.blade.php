@@ -1,9 +1,9 @@
-@extends('layouts.app')
+@extends('layouts.admin-dashboard')
 
 @section('title', 'অর্গানাইজেশন/হাসপাতাল যাচাই কিউ | রক্তদূত অ্যাডমিন')
 
 @section('content')
-<div class="max-w-6xl mx-auto px-4 py-8">
+<div data-panel-id="org-reviews" class="max-w-6xl mx-auto px-4 py-8">
     <div class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
             <h1 class="text-2xl font-extrabold text-slate-900 flex items-center gap-2">
@@ -67,6 +67,7 @@
                             <th class="text-left px-6 py-4">নাম ও ধরন</th>
                             <th class="text-left px-6 py-4">ঠিকানা</th>
                             <th class="text-left px-6 py-4">যোগাযোগ</th>
+                            <th class="text-left px-6 py-4">আবেদনের সময়</th>
                             <th class="text-center px-6 py-4">অফিশিয়াল ডকুমেন্ট</th>
                             <th class="text-center px-6 py-4">অ্যাকশন</th>
                         </tr>
@@ -100,6 +101,16 @@
                                         @if($org->email)
                                             <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg> {{ $org->email }}</span>
                                         @endif
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="flex flex-col gap-0.5">
+                                        <span class="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold px-2.5 py-1 rounded-lg whitespace-nowrap">
+                                            🕐 {{ $org->created_at->diffForHumans() }}
+                                        </span>
+                                        <span class="text-[10px] text-slate-400 font-medium pl-0.5" title="{{ $org->created_at->format('d M Y, h:i A') }}">
+                                            {{ $org->created_at->format('d M Y') }}
+                                        </span>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 text-center">

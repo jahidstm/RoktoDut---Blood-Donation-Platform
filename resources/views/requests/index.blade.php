@@ -1,26 +1,36 @@
-@extends('layouts.app')
+@php
+    $layout = 'layouts.app';
+    // Blood request feed is full-width for all roles, no sidebar
+@endphp
+@extends($layout)
 
 @section('title', 'রক্তদান — রিকোয়েস্ট ফিড — রক্তদূত')
 
 @section('content')
 {{-- 🎯 THE FIX: এই মেইন কন্টেইনার ডিভটি পুরো কন্টেন্টকে র‍্যাপ করে মাঝখানে রাখবে --}}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" data-panel-id="blood-feed">
 
-    <div class="flex items-start justify-between gap-4 mb-8">
+    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8 scroll-reveal" data-scroll-reveal>
         <div>
             <h1 class="text-2xl font-extrabold tracking-tight">রক্তের রিকোয়েস্ট ফিড</h1>
             <p class="text-slate-500 font-medium mt-1">সাম্প্রতিক পেন্ডিং রিকোয়েস্টগুলো</p>
         </div>
 
-        <a href="{{ route('requests.create') }}"
-           class="shrink-0 inline-flex items-center justify-center bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg font-extrabold shadow-sm shadow-red-200">
-            নতুন রিকোয়েস্ট
-        </a>
+        <div class="flex flex-wrap gap-3 w-full md:w-auto">
+            <a href="{{ route('live-demand.index') }}"
+               class="shrink-0 inline-flex items-center justify-center bg-white border border-slate-200 hover:border-red-300 hover:bg-red-50 text-slate-700 hover:text-red-700 px-4 py-2.5 rounded-lg font-extrabold shadow-sm transition-colors">
+                🗺️ ম্যাপে দেখুন
+            </a>
+            <a href="{{ route('requests.create') }}"
+               class="shrink-0 inline-flex items-center justify-center bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg font-extrabold shadow-sm shadow-red-200">
+                নতুন রিকোয়েস্ট
+            </a>
+        </div>
     </div>
 
     {{-- 🎯 Advanced Filter Section (Server-side Divisions + AJAX Cascade) --}}
-    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mb-8">
-        <form action="{{ route('requests.index') }}" method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mb-8 scroll-reveal" data-scroll-reveal>
+        <form action="{{ route('requests.index') }}" method="GET" class="grid grid-cols-1 min-[480px]:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
             
             <div>
                 <label for="blood_group" class="block text-sm font-bold text-slate-700 mb-1">রক্তের গ্রুপ</label>
@@ -29,6 +39,17 @@
                     @foreach(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as $bg)
                         <option value="{{ $bg }}" {{ request('blood_group') == $bg ? 'selected' : '' }}>{{ $bg }}</option>
                     @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label for="component_type" class="block text-sm font-bold text-slate-700 mb-1">রক্তের ধরন</label>
+                <select name="component_type" id="component_type" class="w-full rounded-lg border-slate-300 shadow-sm focus:border-red-500 focus:ring-red-500 font-semibold text-slate-700">
+                    <option value="">সব ধরন</option>
+                    <option value="whole_blood" {{ request('component_type') == 'whole_blood' ? 'selected' : '' }}>পূর্ণ রক্ত</option>
+                    <option value="prbc" {{ request('component_type') == 'prbc' ? 'selected' : '' }}>PRBC</option>
+                    <option value="platelet" {{ request('component_type') == 'platelet' ? 'selected' : '' }}>Platelet (Apheresis)</option>
+                    <option value="plasma" {{ request('component_type') == 'plasma' ? 'selected' : '' }}>Plasma</option>
                 </select>
             </div>
 
@@ -57,16 +78,16 @@
                 </select>
             </div>
 
-             <div class="md:col-span-4 flex justify-end gap-2 mt-2">
-                 @if(request()->hasAny(['blood_group', 'division_id', 'district_id', 'upazila_id']))
-                     <a href="{{ route('requests.index') }}" class="shrink-0 bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-2.5 rounded-lg font-extrabold transition-colors flex items-center justify-center">
+             <div class="sm:col-span-2 lg:col-span-5 flex flex-col sm:flex-row sm:justify-end gap-2 mt-2">
+                 @if(request()->hasAny(['blood_group', 'component_type', 'division_id', 'district_id', 'upazila_id']))
+                     <a href="{{ route('requests.index') }}" class="w-full sm:w-auto shrink-0 bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-2.5 rounded-lg font-extrabold transition-colors flex items-center justify-center">
                          ক্লিয়ার
                     </a>
                 @endif
-                 <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-8 py-2.5 rounded-lg font-extrabold shadow-sm transition-colors">
+                 <button type="submit" class="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white px-8 py-2.5 rounded-lg font-extrabold shadow-sm transition-colors">
                      খুঁজুন
                  </button>
-             </div>
+              </div>
 
             <input type="hidden" id="selectedDivision" value="{{ request('division_id', '') }}">
             <input type="hidden" id="selectedDistrict" value="{{ request('district_id', '') }}">
@@ -75,18 +96,18 @@
      </div>
 
     @if ($requests->isEmpty())
-        <div class="rounded-2xl border border-slate-200 bg-white p-10 text-center">
+        <div class="rounded-2xl border border-slate-200 bg-white p-10 text-center scroll-reveal" data-scroll-reveal>
             <div class="text-slate-900 font-extrabold text-lg">কোনো পেন্ডিং রিকোয়েস্ট পাওয়া যায়নি</div>
             <div class="text-slate-500 text-sm mt-2 font-medium">নতুন রিকোয়েস্ট তৈরি হলে এখানে দেখাবে। অথবা আপনার ফিল্টার পরিবর্তন করে দেখতে পারেন।</div>
         </div>
     @else
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             @foreach ($requests as $r)
                 <x-request-feed-card :request="$r" :show-requester="true" />
             @endforeach
         </div>
 
-        <div class="mt-8">
+        <div class="mt-8 border-t border-slate-100 pt-6">
             {{ $requests->links() }}
         </div>
     @endif

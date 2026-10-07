@@ -1,9 +1,9 @@
-@extends('layouts.app')
+@extends('layouts.admin-dashboard')
 
 @section('title', 'বার্তা #' . $message->id . ' — সাপোর্ট — রক্তদূত')
 
 @section('content')
-<div class="max-w-4xl mx-auto px-4 py-8">
+<div data-panel-id="support" class="max-w-4xl mx-auto px-4 py-8">
 
     {{-- ── ব্রেডক্রাম ──────────────────────────────────────────────────────── --}}
     <div class="flex items-center gap-2 text-sm font-semibold text-slate-500 mb-6">
@@ -102,7 +102,7 @@
                             <p class="font-extrabold text-slate-900">{{ $message->sender_name }}</p>
                             @if($message->user)
                                 <span class="text-[10px] font-bold bg-red-50 text-red-600 px-2 py-0.5 rounded border border-red-100">
-                                    নিবন্ধিত সদস্য
+                                    রেজিস্টার্ড মেম্বার
                                 </span>
                             @else
                                 <span class="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded">

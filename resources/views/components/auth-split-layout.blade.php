@@ -1,4 +1,4 @@
-@props(['maxWidth' => 'max-w-[28rem]'])
+@props(['maxWidth' => 'max-w-[28rem]', 'title' => null])
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
@@ -6,19 +6,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>{{ config('app.name', 'RoktoDut') }}</title>
+    <title>{{ $title ?? config('app.name', 'রক্তদূত') }}</title>
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.bunny.net/css?family=inter:400,500,600&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
+    <link rel="icon" href="{{ asset('images/image_14.png') }}" type="image/png" sizes="any">
     
     <style>
         body {
-            font-family: 'Noto Sans Bengali', 'Inter', sans-serif;
+            font-family: 'Hind Siliguri', ui-sans-serif, system-ui, -apple-system, sans-serif;
         }
         .glass-card {
             background: rgba(255, 255, 255, 0.85);
@@ -44,6 +45,36 @@
         }
         .input-modern::placeholder {
             color: rgb(148 163 184); /* slate-400 */
+        }
+
+        .scroll-reveal {
+            opacity: 0;
+            transform: translateY(24px);
+            transition: opacity 0.45s ease-out, transform 0.45s ease-out;
+            will-change: opacity, transform;
+        }
+        .scroll-reveal--left {
+            transform: translateX(-24px);
+        }
+        .scroll-reveal--right {
+            transform: translateX(24px);
+        }
+        .scroll-reveal.is-visible,
+        [data-scroll-reveal].is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .scroll-reveal--left.is-visible,
+        .scroll-reveal--right.is-visible {
+            transform: translateX(0);
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .scroll-reveal,
+            [data-scroll-reveal] {
+                opacity: 1 !important;
+                transform: none !important;
+                transition: none !important;
+            }
         }
     </style>
 </head>
@@ -92,20 +123,32 @@
             <div class="lg:hidden absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-red-100/50 to-transparent"></div>
             <div class="lg:hidden absolute w-72 h-72 bg-red-600/10 rounded-full blur-3xl -top-20 -right-10"></div>
             
-            <!-- Mobile Logo -->
             <div class="lg:hidden mb-8 relative z-10 flex flex-col items-center">
-                <div class="w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-2xl flex items-center justify-center shadow-lg shadow-red-600/20 mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2.5C12 2.5 4.5 9 4.5 15.5C4.5 19.6421 7.85786 23 12 23C16.1421 23 19.5 19.6421 19.5 15.5C19.5 9 12 2.5 12 2.5Z"/>
-                    </svg>
-                </div>
-                <h2 class="text-2xl font-bold text-slate-800">রক্তদূত</h2>
+                <a href="{{ route('home') }}" aria-label="রক্তদূত">
+                    <x-logo size="lg" variant="full" />
+                </a>
             </div>
             
-            <div class="w-full {{ $maxWidth ?? 'max-w-[28rem]' }} relative z-10 glass-card rounded-3xl p-8 sm:p-10 shadow-xl shadow-slate-200">
+            <div class="w-full {{ $maxWidth ?? 'max-w-[28rem]' }} relative z-10 glass-card rounded-3xl p-8 sm:p-10 shadow-xl shadow-slate-200 scroll-reveal"
+                 data-scroll-reveal>
                 {{ $slot }}
             </div>
         </div>
     </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const revealItems = document.querySelectorAll('[data-scroll-reveal]');
+            if (!revealItems.length) return;
+            const revealObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('is-visible');
+                        revealObserver.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.2, rootMargin: '0px 0px -10% 0px' });
+            revealItems.forEach(item => revealObserver.observe(item));
+        });
+    </script>
 </body>
 </html>

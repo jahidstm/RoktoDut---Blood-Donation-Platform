@@ -6,12 +6,15 @@ use App\Models\Post;
 use App\Models\Division;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Auth\Events\Login;
+use Illuminate\Support\Facades\Log;
 use App\Listeners\LogSuccessfulLogin;
 use App\Events\DonationCompleted;
 use App\Listeners\RewardDonorPoints;
@@ -28,6 +31,10 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        if (str_contains(request()->getHost(), 'ngrok')) {
+            URL::forceScheme('https');
+        }
+
         $this->configureViteDevServer();
 
         Event::listen(
@@ -39,6 +46,19 @@ class AppServiceProvider extends ServiceProvider
             DonationCompleted::class,
             RewardDonorPoints::class,
         );
+        
+        // ─── Queue Failed Job Listener ─────────────────────────────────────────
+        Event::listen(JobFailed::class, function (JobFailed $event) {
+            Log::critical('[QUEUE_JOB_FAILED]', [
+                'connection' => $event->connectionName,
+                'queue'      => $event->job->getQueue(),
+                'job_name'   => $event->job->resolveName(),
+                'exception'  => $event->exception->getMessage(),
+                'time'       => now()->toDateTimeString(),
+            ]);
+            
+            // In the future, this can be extended to send a Telegram alert to Admin
+        });
 
         ResetPassword::toMailUsing(function (object $notifiable, string $token) {
             $url = url(route('password.reset', [
@@ -152,8 +172,17 @@ class AppServiceProvider extends ServiceProvider
             ];
         });
 
-        View::composer('admin.layouts.sidebar', function ($view) {
-            $view->with('pendingBlogCount', Post::pendingReview()->count());
+        View::composer('layouts.admin-dashboard', function ($view) {
+            $view->with([
+                'pendingClaimsCount' => \App\Models\BloodRequestResponse::whereIn('verification_status', ['claimed', 'disputed'])->count(),
+                'pendingNidsCount' => \App\Models\User::where('nid_status', 'pending')->whereNotNull('nid_path')->whereNull('organization_id')->count(),
+                'pendingOrgsCount' => \App\Models\Organization::where('status', 'pending')->count(),
+                'pendingBlogCount' => \App\Models\Post::pendingReview()->count(),
+                'pendingSupportCount' => \App\Models\ContactMessage::where('status', 'new')->count(),
+                'pendingReportsCount' => \App\Models\Report::where('status', 'open')->count(),
+                'pendingHospitalsCount' => \App\Models\Hospital::unverified()->count(),
+                'pendingAmbulancesCount' => \App\Models\Ambulance::where('is_verified', false)->count(),
+            ]);
         });
     }
 

@@ -13,6 +13,8 @@ use App\Http\Controllers\Admin\AnalyticsController;
 use App\Http\Controllers\Admin\GamificationGovernanceController;
 use App\Http\Controllers\Admin\BlogModerationController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Donor\DashboardController as DonorDashboardController;
+use App\Http\Controllers\Donor\AvailabilityCalendarController;
 use App\Http\Controllers\DonationRecordController;
 use App\Http\Controllers\OrgAdmin\DashboardController as OrgDashboardController;
 use App\Http\Controllers\OrgAdmin\VerificationController;
@@ -25,6 +27,8 @@ use App\Http\Controllers\ChatbotController;
 use App\Http\Controllers\ClaimVerificationController;
 use App\Http\Controllers\OfflineClaimController;
 use App\Http\Controllers\FcmTokenController;
+use App\Http\Controllers\DonorHealthLedgerController;
+use App\Http\Controllers\SuspendedDonorController;
 
 use App\Http\Controllers\PublicBloodRequestController;
 use App\Http\Controllers\BlogController;
@@ -32,17 +36,22 @@ use App\Http\Controllers\BlogSubmissionController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\Admin\SupportMessageController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ChatController;
 use App\Http\Controllers\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\SpamRadarController;
+use App\Http\Controllers\Admin\AdminHeatmapController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\PwaController;
 use App\Http\Controllers\HospitalController;
+use App\Http\Controllers\BloodBankController;
 use App\Models\Division;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\SmartCardImageController;
+use App\Http\Controllers\CertificateController;
 
 // ─────────────────────────────────────────────────────────────────────────
 // 🔐 Dynamic QR Smart Card — Public Verification (NO auth middleware)
@@ -55,12 +64,28 @@ Route::get('/verify/{token}/download-pass', [SmartCardImageController::class, 'd
 Route::get('/verify/{token}/og-image.png', [SmartCardImageController::class, 'socialOg'])
     ->name('public.verify.og');
 
+// ── Blood Donation Certificate (Public — no auth required) ────────────────
+Route::get('/certificate/{token}',          [CertificateController::class, 'show'])
+    ->name('certificate.show')
+    ->middleware('throttle:60,1');
+Route::get('/certificate/{token}/preview',  [CertificateController::class, 'preview'])
+    ->name('certificate.preview');
+Route::get('/certificate/{token}/download', [CertificateController::class, 'download'])
+    ->name('certificate.download')
+    ->middleware('throttle:30,1');
+
 Route::get('/offline-verify/{claim}', [ClaimVerificationController::class, 'show'])
     ->name('offline.verify')
     ->middleware('signed');
 Route::post('/offline-verify/{claim}/confirm', [ClaimVerificationController::class, 'confirm'])
     ->name('offline.confirm')
     ->middleware('signed');
+
+Route::get('/avatar/{user}', [ProfileController::class, 'avatar'])
+    ->middleware('throttle:120,1')
+    ->name('profile.avatar');
+
+Broadcast::routes(['middleware' => ['web', 'auth']]);
 
 // ─────────────────────────────────────────────────────────────────────────
 // 🤖 Telegram Bot Webhook (NO auth — Telegram সার্ভার থেকে আসে)
@@ -151,7 +176,7 @@ Route::get('/', function () {
 })->name('home');
 
 Route::post('/chatbot/ask', [ChatbotController::class, 'ask'])
-    ->middleware('throttle:30,1')
+    ->middleware('throttle:60,1')
     ->name('chatbot.ask');
 
 Route::get('/search', [SearchController::class, 'index'])->name('search');
@@ -159,6 +184,16 @@ Route::post('/donors/{donor}/reveal/start', [DonorRevealController::class, 'star
 Route::post('/donors/{donor}/reveal/verify', [DonorRevealController::class, 'verify'])->name('donors.reveal.verify');
 
 Route::get('/leaderboard', [LeaderboardController::class, 'index'])->name('leaderboard');
+
+// 🗺️ Geo-Spatial Live Demand Heatmap (Public — all users can view)
+Route::get('/live-demand', [\App\Http\Controllers\LiveDemandController::class, 'index'])
+    ->name('live-demand.index');
+
+// 🚑 Ambulance Directory (Public)
+Route::get('/ambulances', [\App\Http\Controllers\AmbulanceController::class, 'index'])
+    ->name('ambulances.index');
+
+
 
 Route::get('/gamification-guide', function () {
     return view('pages.gamification-guide');
@@ -176,6 +211,9 @@ Route::get('/terms', function () {
     return view('pages.terms');
 })->name('terms');
 
+Route::get('/faq', function () {
+    return view('pages.faq');
+})->name('faq');
 
 
 Route::get('/urgent-requests', [PublicBloodRequestController::class, 'index'])->name('public.requests.index');
@@ -191,6 +229,8 @@ Route::post('/requests', [BloodRequestController::class, 'store'])
     ->name('requests.store');
 Route::get('/my-requests', [BloodRequestController::class, 'myRequests'])
     ->name('requests.my-requests');
+Route::get('/my-request-responses', [BloodRequestController::class, 'myResponses'])
+    ->name('requests.my-responses');
 Route::post('/requests/{bloodRequest}/renew', [BloodRequestController::class, 'renew'])
     ->name('requests.renew');
 Route::get('/requests/{bloodRequest}', [BloodRequestController::class, 'show'])
@@ -228,8 +268,19 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
 });
 
+// ─────────────────────────────────────────────────────────────────────────
+// 🆘 Emergency SOS — যেকোনো পেজ থেকে এক ক্লিকে ডোনার নোটিফাই
+// Rate: 1 SOS per 30 min per user (Cache Lock enforced in controller)
+// ─────────────────────────────────────────────────────────────────────────
+Route::post('/sos/trigger', [\App\Http\Controllers\EmergencySosController::class, 'trigger'])
+    ->name('sos.trigger')
+    ->middleware(['auth', 'throttle:2,30']);
+
 // --- ৪. ভেরিফাইড ইউজার কোর ফিচারস ---
 Route::middleware(['auth'])->group(function () {
+    // Ambulance Submission (Crowdsourcing)
+    Route::get('/ambulances/create', [\App\Http\Controllers\User\AmbulanceSubmissionController::class, 'create'])->name('ambulances.create');
+    Route::post('/ambulances', [\App\Http\Controllers\User\AmbulanceSubmissionController::class, 'store'])->name('ambulances.store');
     Route::resource('requests', BloodRequestController::class)
         ->parameters(['requests' => 'bloodRequest'])
         ->only(['index']);
@@ -238,6 +289,8 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/responses/{response}/status', [BloodRequestResponseController::class, 'updateStatus'])->name('requests.responses.update');
     Route::post('/responses/{response}/claim', [DonationClaimController::class, 'store'])->name('donations.claim');
     Route::post('/responses/{response}/recipient-verify', [DonationClaimController::class, 'verifyByRecipient'])->name('donations.recipient_verify');
+    Route::get('/responses/{response}/chat', [ChatController::class, 'index'])->name('chat.show');
+    Route::post('/responses/{response}/chat', [ChatController::class, 'store'])->name('chat.store');
     Route::post('/requests/{bloodRequest}/fulfill', [BloodRequestController::class, 'fulfill'])->name('requests.fulfill');
     Route::post('/requests/{bloodRequest}/subscribe', [BloodRequestController::class, 'subscribeRecurring'])->name('requests.subscribe');
     Route::post('/requests/{bloodRequest}/report', [\App\Http\Controllers\BloodRequestReportController::class, 'store'])->name('requests.report');
@@ -254,6 +307,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::get('/profile/upgrade-to-donor', [ProfileController::class, 'upgradeForm'])->name('profile.upgrade');
     Route::post('/profile/upgrade-to-donor', [ProfileController::class, 'upgradeToDonor'])->name('profile.upgrade_to_donor');
     Route::post('/profile/availability', [ProfileController::class, 'toggleEmergencyMode'])->name('donor_profile.is_available_now');
     Route::post('/profile/toggle-hide-phone', [ProfileController::class, 'toggleHidePhone'])->name('profile.toggle.hide_phone');
@@ -265,6 +319,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/blog', [BlogSubmissionController::class, 'store'])->name('blog.store');
     Route::post('/donation-record', [DonationRecordController::class, 'update'])->name('donation.record.update');
     Route::get('/donations/{response}/proof', [DonationClaimController::class, 'viewProof'])->name('donations.proof');
+    Route::get('/health-ledger', [DonorHealthLedgerController::class, 'index'])->middleware('role:donor')->name('health-ledger.index');
+    Route::post('/health-ledger', [DonorHealthLedgerController::class, 'store'])->middleware('role:donor')->name('health-ledger.store');
+    Route::post('/donor/medical-clearance', [SuspendedDonorController::class, 'uploadMedicalClearance'])
+        ->name('donor.medical-clearance.upload');
 
     // 📍 Geospatial: ডোনারের GPS লোকেশন সেভ করা
     Route::post('/profile/location', [ProfileController::class, 'updateLocation'])->name('profile.location.update');
@@ -276,6 +334,60 @@ Route::middleware(['auth'])->group(function () {
 
 
 // --- ৫. ড্যাশবোর্ড রাউটস (রোল ভিত্তিক) ---
+
+// ডোনার ড্যাশবোর্ড (dedicated sidebar layout)
+Route::get('/donor/dashboard', [DonorDashboardController::class, 'index'])
+    ->middleware(['auth', 'role:donor'])
+    ->name('donor.dashboard');
+
+Route::get('/donor/offline-claim', [DonorDashboardController::class, 'offlineClaim'])
+    ->middleware(['auth', 'role:donor'])
+    ->name('donor.offline-claim');
+
+Route::get('/donor/my-buddies', [DonorDashboardController::class, 'myBuddies'])
+    ->middleware(['auth', 'role:donor'])
+    ->name('donor.my_buddies');
+
+Route::get('/donor/recent-requests', [DonorDashboardController::class, 'recentRequests'])
+    ->middleware(['auth', 'role:donor'])
+    ->name('donor.recent_requests');
+
+Route::get('/donor/blood-history', [DonorDashboardController::class, 'bloodHistory'])
+    ->middleware(['auth', 'role:donor'])
+    ->name('donor.blood_history');
+
+Route::get('/donor/certificates', [DonorDashboardController::class, 'certificates'])
+    ->middleware(['auth', 'role:donor'])
+    ->name('donor.certificates');
+
+// ─────────────────────────────────────────────────────────────────────────
+// 🩸 Chronic Patient Registry (Thalassemia / Dialysis etc.)
+// ─────────────────────────────────────────────────────────────────────────
+Route::middleware(['auth'])->prefix('my-subscriptions')->name('chronic.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\ChronicSubscriptionController::class, 'index'])->name('index');
+    Route::get('/create', [\App\Http\Controllers\ChronicSubscriptionController::class, 'create'])->name('create');
+    Route::post('/', [\App\Http\Controllers\ChronicSubscriptionController::class, 'store'])->name('store');
+    Route::get('/{subscription}', [\App\Http\Controllers\ChronicSubscriptionController::class, 'show'])->name('show');
+    Route::get('/{subscription}/edit', [\App\Http\Controllers\ChronicSubscriptionController::class, 'edit'])->name('edit');
+    Route::put('/{subscription}', [\App\Http\Controllers\ChronicSubscriptionController::class, 'update'])->name('update');
+    Route::post('/{subscription}/pause', [\App\Http\Controllers\ChronicSubscriptionController::class, 'pause'])->name('pause');
+    Route::delete('/{subscription}', [\App\Http\Controllers\ChronicSubscriptionController::class, 'destroy'])->name('destroy');
+    Route::delete('/{subscription}/buddies/{buddy}', [\App\Http\Controllers\ChronicSubscriptionController::class, 'removeBuddy'])->name('buddies.remove');
+});
+
+// Donor Availability Calendar
+Route::middleware(['auth', 'role:donor'])->group(function () {
+    Route::get('/donor/availability', [AvailabilityCalendarController::class, 'index'])
+        ->name('donor.availability.index');
+    Route::post('/donor/availability', [AvailabilityCalendarController::class, 'store'])
+        ->name('donor.availability.store');
+    Route::delete('/donor/availability/{availability}', [AvailabilityCalendarController::class, 'destroy'])
+        ->name('donor.availability.destroy');
+    Route::patch('/donor/availability/{availability}/toggle', [AvailabilityCalendarController::class, 'toggle'])
+        ->name('donor.availability.toggle');
+});
+
+// জেনেরিক ড্যাশবোর্ড (Recipient — বা donor হলে redirect করে donor.dashboard এ)
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'role:donor,recipient'])
     ->name('dashboard');
@@ -288,6 +400,17 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin/verification/organization-reviews', [AdminDashboardController::class, 'organizationReviews'])->name('admin.org.reviews');
     Route::get('/admin/analytics', [AnalyticsController::class, 'index'])->name('admin.analytics.index');
     Route::get('/admin/analytics/export', [AnalyticsController::class, 'export'])->name('admin.analytics.export');
+
+    // 🩸 Chronic Patients Admin Oversight
+    Route::prefix('admin/chronic')->name('admin.chronic.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\AdminChronicController::class, 'index'])->name('index');
+        Route::get('/{subscription}', [\App\Http\Controllers\Admin\AdminChronicController::class, 'show'])->name('show');
+        Route::post('/{subscription}/toggle', [\App\Http\Controllers\Admin\AdminChronicController::class, 'toggleActive'])->name('toggle');
+    });
+
+    // 🗺️ Geo-Spatial Demand Heatmap (Admin — raw metrics visible)
+    Route::get('/admin/heatmap', [AdminHeatmapController::class, 'index'])->name('admin.heatmap.index');
+    Route::get('/admin/heatmap/export', [AdminHeatmapController::class, 'exportCsv'])->name('admin.heatmap.export');
     Route::get('/admin/audit-logs', [AuditLogController::class, 'index'])->name('admin.audit-logs.index');
     Route::get('/admin/nid/{user}/image', [ProfileController::class, 'viewNidForAdmin'])
         ->middleware('signed')
@@ -297,6 +420,10 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('/admin/users/{user}/verify-nid', [AdminDashboardController::class, 'verifyNid'])->name('admin.nid.verify');
     Route::post('/admin/orgs/{organization}/verify', [AdminDashboardController::class, 'verifyOrg'])->name('admin.org.verify');
     Route::get('/admin/orgs/{organization}/document', [AdminDashboardController::class, 'viewOrgDocument'])->name('admin.org.document');
+    Route::get('/admin/medical-documents/{user}', [\App\Http\Controllers\Admin\SuspendedDonorController::class, 'download'])
+        ->name('admin.medical-documents.download');
+    Route::post('/admin/medical-documents/{user}/reactivate', [\App\Http\Controllers\Admin\SuspendedDonorController::class, 'reactivate'])
+        ->name('admin.medical-documents.reactivate');
 
     // 🛑 Spam Radar Routes
     Route::get('/admin/spam-radar', [SpamRadarController::class, 'index'])->name('admin.spam-radar.index');
@@ -330,11 +457,19 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
         Route::get('/{report}', [AdminReportController::class, 'show'])->name('show');
         Route::post('/{report}/status', [AdminReportController::class, 'updateStatus'])->name('status');
     });
+
+    // 🚑 Admin Ambulance Management
+    Route::prefix('admin/ambulances')->name('admin.ambulances.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\AmbulanceManagementController::class, 'index'])->name('index');
+        Route::patch('/{ambulance}/verify', [\App\Http\Controllers\Admin\AmbulanceManagementController::class, 'verify'])->name('verify');
+        Route::delete('/{ambulance}', [\App\Http\Controllers\Admin\AmbulanceManagementController::class, 'destroy'])->name('destroy');
+    });
 });
 
 // --- ৬. অর্গানাইজেশন অ্যাডমিন রাউটস (ইন্টিগ্রেটেড গ্রুপ) ---
 Route::middleware(['auth', 'role:org_admin'])->group(function () {
     Route::get('/org/dashboard', [OrgDashboardController::class, 'index'])->name('org.dashboard');
+    Route::get('/org/members', [OrgDashboardController::class, 'members'])->name('org.members.index');
     Route::patch('/org/members/{donor}/verify', [OrgDashboardController::class, 'updateVerificationStatus'])->name('org.members.verify');
     Route::get('/org/donor/{id}/verify', [VerificationController::class, 'show'])->name('org.donor.verify');
     Route::get('/org/nid/{user}/image', [ProfileController::class, 'viewNidForOrg'])
@@ -357,7 +492,22 @@ Route::middleware(['auth', 'role:org_admin'])->group(function () {
     Route::post('/org/camps/{camp}/cancel', [\App\Http\Controllers\OrgAdmin\BloodCampController::class, 'cancel'])->name('org.camps.cancel');
     Route::get('/org/camps/{camp}', [\App\Http\Controllers\OrgAdmin\BloodCampController::class, 'show'])->name('org.camps.show');
     Route::post('/org/camps/{camp}/attendance', [\App\Http\Controllers\OrgAdmin\BloodCampController::class, 'logAttendance'])->name('org.camps.attendance');
+    // Ambulances
+    Route::prefix('org/ambulances')->name('org.ambulances.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\OrgAdmin\AmbulanceController::class, 'index'])->name('index');
+        Route::get('/create', [\App\Http\Controllers\OrgAdmin\AmbulanceController::class, 'create'])->name('create');
+        Route::post('/', [\App\Http\Controllers\OrgAdmin\AmbulanceController::class, 'store'])->name('store');
+        Route::delete('/{ambulance}', [\App\Http\Controllers\OrgAdmin\AmbulanceController::class, 'destroy'])->name('destroy');
+    });
+    // Blood Bank Inventory (Org Admin)
+    Route::get('/org/inventory', [\App\Http\Controllers\OrgAdmin\BloodInventoryController::class, 'index'])->name('org.inventory.index');
+    Route::put('/org/inventory', [\App\Http\Controllers\OrgAdmin\BloodInventoryController::class, 'update'])->name('org.inventory.update');
+    Route::post('/org/inventory/toggle', [\App\Http\Controllers\OrgAdmin\BloodInventoryController::class, 'toggleAccepting'])->name('org.inventory.toggle');
 });
+
+// Public Blood Bank Search (no auth required)
+Route::get('/blood-bank', [BloodBankController::class, 'index'])->name('blood-bank.index');
+Route::get('/blood-bank/{organization}', [BloodBankController::class, 'show'])->name('blood-bank.show');
 
 // --- ৭. AJAX লোকেশন রাউটস ---
 Route::get('/ajax/divisions', [LocationController::class, 'getDivisions']);

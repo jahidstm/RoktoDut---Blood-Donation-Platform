@@ -12,6 +12,9 @@ class ProfileUpdateRequest extends FormRequest
     {
         return [
             'date_of_birth.before_or_equal' => 'রক্তদানের জন্য আপনার বয়স ন্যূনতম ১৮ বছর হতে হবে।',
+            'profile_image.mimes' => 'প্রোফাইল ছবির জন্য শুধুমাত্র JPG, JPEG, PNG বা WEBP ফাইল দিন।',
+            'profile_image.max' => 'প্রোফাইল ছবির সাইজ সর্বোচ্চ 2MB হতে হবে।',
+            'phone.unique' => 'এই মোবাইল নম্বরটি ইতিমধ্যে অন্য একটি অ্যাকাউন্টে ব্যবহার করা হয়েছে।',
         ];
     }
 
@@ -28,7 +31,7 @@ class ProfileUpdateRequest extends FormRequest
                 Rule::unique(User::class)->ignore($this->user()->id),
             ],
             // 🚀 নতুন ফিল্ডগুলোর ভ্যালিডেশন
-            'phone' => ['nullable', 'string', 'max:20'],
+            'phone' => ['nullable', 'string', 'max:20', Rule::unique(User::class)->ignore($this->user()->id)],
             'blood_group' => ['nullable', 'string'],
             'division_id' => ['nullable', 'exists:divisions,id'],
             'district_id' => ['nullable', 'exists:districts,id'],
@@ -37,7 +40,7 @@ class ProfileUpdateRequest extends FormRequest
             'gender' => ['nullable', 'string', 'in:male,female'],
             'weight' => ['nullable', 'numeric', 'min:30'],
             'organization_id' => ['nullable', 'exists:organizations,id'],
-            'profile_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'], // Max 2MB
+            'profile_image' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:2048'], // Max 2MB
         ];
     }
 }

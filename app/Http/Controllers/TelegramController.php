@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Services\TelegramService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -70,6 +71,23 @@ class TelegramController extends Controller
             $this->telegram->send($chatId, "🩸 <b>রক্তদূত বটে স্বাগতম!</b>\n\nআপনার অ্যাকাউন্ট কানেক্ট করতে রক্তদূত প্রোফাইল পেজ থেকে <b>\"Connect Telegram\"</b> বাটনে ক্লিক করুন।");
         }
 
+        // /stop এলে সংযোগ বিচ্ছিন্ন করা
+        if ($messageText === '/stop') {
+            $user = User::where('telegram_chat_id', (string) $chatId)->first();
+            if ($user) {
+                $user->update([
+                    'telegram_chat_id'       => null,
+                    'telegram_connected_at'  => null,
+                ]);
+                $this->telegram->send($chatId, "❌ <b>সংযোগ বিচ্ছিন্ন করা হয়েছে।</b>\n\nআপনি আর রক্তদূতের কোনো নোটিফিকেশন পাবেন না। পুনরায় যুক্ত হতে প্রোফাইল থেকে আবার কানেক্ট করুন।");
+            }
+        }
+
+        // Bonus flow: free-text intake -> FastAPI NLP parse -> internal webhook persist
+        if ($messageText !== '' && !$this->isBotCommand($messageText)) {
+            $this->handleNlpIntake($chatId, $messageText);
+        }
+
         return response()->json(['ok' => true]);
     }
 
@@ -110,6 +128,62 @@ class TelegramController extends Controller
 
         // সফল সংযোগের ওয়েলকাম মেসেজ
         $this->telegram->sendWelcomeMessage($chatId, $user->name);
+    }
+
+    private function isBotCommand(string $messageText): bool
+    {
+        return str_starts_with($messageText, '/');
+    }
+
+    private function handleNlpIntake(int|string $chatId, string $messageText): void
+    {
+        $mlBaseUrl = rtrim((string) config('services.roktodut_ml.base_url'), '/');
+        $mlApiKey = (string) config('services.roktodut_ml.api_key');
+        $internalSecret = (string) config('services.roktodut_ml.internal_secret');
+        $internalUrl = url('/api/internal/requests/nlp');
+
+        try {
+            $parseResponse = Http::timeout(8)
+                ->withHeaders([
+                    'X-API-Key' => $mlApiKey,
+                ])
+                ->post("{$mlBaseUrl}/api/v1/parse-request", [
+                    'text' => $messageText,
+                ]);
+
+            $parseResponse->throw();
+            $parsed = $parseResponse->json();
+
+            $linkedUser = User::query()
+                ->where('telegram_chat_id', (string) $chatId)
+                ->first();
+
+            $persistPayload = array_merge($parsed, [
+                'requested_by' => $linkedUser?->id,
+                'telegram_chat_id' => (string) $chatId,
+                'raw_text' => $messageText,
+            ]);
+
+            $saveResponse = Http::timeout(8)
+                ->withHeaders([
+                    'X-Internal-Secret' => $internalSecret,
+                ])
+                ->post($internalUrl, $persistPayload);
+
+            $saveResponse->throw();
+
+            $this->telegram->send($chatId, 'আপনার রিকোয়েস্টটি যাচাই করা হচ্ছে।');
+        } catch (\Throwable $e) {
+            Log::warning('[TelegramWebhook] NLP intake failed', [
+                'chat_id' => (string) $chatId,
+                'message' => $e->getMessage(),
+            ]);
+
+            $this->telegram->send(
+                $chatId,
+                'দুঃখিত, আপনার অনুরোধটি এখন প্রক্রিয়া করা গেল না। একটু পর আবার চেষ্টা করুন।'
+            );
+        }
     }
 
     // ─────────────────────────────────────────────────────────────

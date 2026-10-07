@@ -1,12 +1,36 @@
-@extends('layouts.app')
+@php
+    $layout = 'layouts.app';
+    if(auth()->check()){
+        $u = auth()->user();
+        // Search page is full-width for all roles, no sidebar
+        // admin, org admin use their dashboard header but content is full-width via layouts.app
+    }
+@endphp
+@extends($layout)
 
 @section('title', 'রক্তদাতা খুঁজুন — রক্তদূত')
 
 @section('content')
-<x-page-header variant="app" title="রক্তদাতা খুঁজুন" />
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" data-panel-id="search">
+    
+    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8 scroll-reveal" data-scroll-reveal>
+        <div>
+            <h1 class="text-2xl font-extrabold tracking-tight">রক্তদাতা খুঁজুন</h1>
+            <p class="text-slate-500 font-medium mt-1">লোকেশন ও গ্রুপের ভিত্তিতে ডোনার সার্চ করুন</p>
+        </div>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    @include('partials.pilot-banner')
+        <div class="flex flex-wrap gap-3 w-full md:w-auto">
+            <a href="{{ route('live-demand.index') }}"
+               class="shrink-0 inline-flex items-center justify-center bg-white border border-slate-200 hover:border-red-300 hover:bg-red-50 text-slate-700 hover:text-red-700 px-4 py-2.5 rounded-lg font-extrabold shadow-sm transition-colors">
+                🗺️ ম্যাপে দেখুন
+            </a>
+            <a href="{{ route('requests.create') }}"
+               class="shrink-0 inline-flex items-center justify-center bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg font-extrabold shadow-sm shadow-red-200">
+                নতুন রিকোয়েস্ট
+            </a>
+        </div>
+    </div>
+
 
     @php
         $selectedDivision = $request['division_id'] ?? '';
@@ -24,8 +48,8 @@
         </div>
     @endif
 
-    <x-card class="mb-8 border-slate-200" paddings="p-5">
-        <form method="GET" action="{{ route('search') }}" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mb-8 scroll-reveal" data-scroll-reveal>
+        <form method="GET" action="{{ route('search') }}" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 items-end">
                 <div>
                     <label class="block text-sm font-bold text-slate-700 mb-1">রক্তের গ্রুপ</label>
                     <select name="blood_group" class="w-full rounded-lg border-slate-300 shadow-sm focus:border-red-500 focus:ring-red-500 font-semibold text-slate-700">
@@ -59,21 +83,21 @@
 
                 <div>
                     <label for="filter_district" class="block text-sm font-bold text-slate-700 mb-1">জেলা</label>
-                    <select name="district_id" id="filter_district" disabled class="w-full rounded-lg border-slate-300 shadow-sm focus:border-red-500 focus:ring-red-500 font-semibold text-slate-700 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed">
+                    <select name="district_id" id="filter_district" disabled class="w-full rounded-lg border-slate-300 shadow-sm focus:border-red-500 focus:ring-red-500 font-semibold text-slate-700">
                         <option value="">প্রথমে বিভাগ নির্বাচন করুন</option>
                     </select>
                 </div>
 
-                <div>
+                <div class="sm:col-span-2 lg:col-span-1">
                     <label for="filter_upazila" class="block text-sm font-bold text-slate-700 mb-1">উপজেলা/থানা</label>
-                    <select name="upazila_id" id="filter_upazila" disabled class="w-full rounded-lg border-slate-300 shadow-sm focus:border-red-500 focus:ring-red-500 font-semibold text-slate-700 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed">
+                    <select name="upazila_id" id="filter_upazila" disabled class="w-full rounded-lg border-slate-300 shadow-sm focus:border-red-500 focus:ring-red-500 font-semibold text-slate-700">
                         <option value="">প্রথমে জেলা নির্বাচন করুন</option>
                     </select>
                 </div>
-                <div class="md:col-span-5 flex justify-end gap-2 mt-2">
+                <div class="sm:col-span-2 lg:col-span-5 flex justify-end gap-2 mt-2">
                     @if(request()->hasAny(['blood_group', 'component_type', 'division_id', 'district_id', 'upazila_id']))
                         <a href="{{ route('search') }}" class="shrink-0 bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-2.5 rounded-lg font-extrabold transition-colors flex items-center justify-center">
-                            রিসেট
+                            ক্লিয়ার
                         </a>
                     @endif
                     <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-8 py-2.5 rounded-lg font-extrabold shadow-sm transition-colors">
@@ -85,9 +109,9 @@
                 <input type="hidden" id="selectedDistrict" value="{{ $selectedDistrict }}">
                 <input type="hidden" id="selectedUpazila" value="{{ $selectedUpazila }}">
             </form>
-    </x-card>
+    </div>
 
-    <div class="mb-5">
+    <div class="mb-5 scroll-reveal" data-scroll-reveal>
         <div class="flex items-center justify-between gap-3">
             <h2 class="text-lg font-black text-slate-800">সার্চ ফলাফল</h2>
             <span class="text-sm font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
@@ -111,7 +135,7 @@
     </div>
 
     @if($donors->isEmpty())
-        <x-card paddings="p-10" class="text-center">
+        <x-card paddings="p-10" class="text-center scroll-reveal" data-scroll-reveal>
             <div class="mx-auto mb-4 h-14 w-14 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
                 <svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 15.75 18 18m-9.75-5.25h.008v.008H8.25V12.5Zm3.75 0h.008v.008H12V12.5Zm3.75 0h.008v.008h-.008V12.5ZM3 10.5h18m-1.5 9h-15A1.5 1.5 0 0 1 3 18V7.5A1.5 1.5 0 0 1 4.5 6h15A1.5 1.5 0 0 1 21 7.5V18a1.5 1.5 0 0 1-1.5 1.5Z"/>
@@ -137,39 +161,8 @@
             @endforeach
         </div>
 
-        @php
-            $from = $donors->firstItem() ?? 0;
-            $to = $donors->lastItem() ?? 0;
-            $total = $donors->total();
-        @endphp
-        <div class="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <p class="text-sm font-semibold text-slate-600">
-                দেখানো হচ্ছে: {{ \App\Support\BanglaDate::digits((string) $from) }}–{{ \App\Support\BanglaDate::digits((string) $to) }} (মোট {{ \App\Support\BanglaDate::digits((string) $total) }} জন)
-            </p>
-
-            @if($donors->hasPages())
-                <nav class="inline-flex items-center gap-1" aria-label="Pagination">
-                    @if($donors->onFirstPage())
-                        <span class="px-3 py-2 rounded-lg border border-slate-200 bg-slate-100 text-slate-400 text-sm font-bold">আগের</span>
-                    @else
-                        <a href="{{ $donors->previousPageUrl() }}" class="px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-bold hover:bg-slate-50">আগের</a>
-                    @endif
-
-                    @foreach($donors->getUrlRange(1, $donors->lastPage()) as $page => $url)
-                        @if($page == $donors->currentPage())
-                            <span class="px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-black">{{ \App\Support\BanglaDate::digits((string) $page) }}</span>
-                        @else
-                            <a href="{{ $url }}" class="px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-bold hover:bg-slate-50">{{ \App\Support\BanglaDate::digits((string) $page) }}</a>
-                        @endif
-                    @endforeach
-
-                    @if($donors->hasMorePages())
-                        <a href="{{ $donors->nextPageUrl() }}" class="px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-bold hover:bg-slate-50">পরের</a>
-                    @else
-                        <span class="px-3 py-2 rounded-lg border border-slate-200 bg-slate-100 text-slate-400 text-sm font-bold">পরের</span>
-                    @endif
-                </nav>
-            @endif
+        <div class="mt-8 border-t border-slate-100 pt-6">
+            {{ $donors->links() }}
         </div>
     @endif
 

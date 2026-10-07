@@ -34,6 +34,7 @@ return [
         'token'    => env('TELEGRAM_BOT_TOKEN'),
         'username' => env('TELEGRAM_BOT_USERNAME'),
         'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
+        'admin_chat_id' => env('TELEGRAM_ADMIN_CHAT_ID'),
     ],
 
     'firebase' => [
@@ -45,6 +46,19 @@ return [
         'app_id' => env('FIREBASE_APP_ID'),
         'measurement_id' => env('FIREBASE_MEASUREMENT_ID'),
         'vapid_key' => env('FIREBASE_VAPID_KEY'),
+    ],
+
+    'roktodut_ml' => [
+        'base_url' => env('ROKTODUT_ML_BASE_URL', 'http://127.0.0.1:8001'),
+        'api_key' => env('ROKTODUT_AI_SECRET', 'ROKTODUT_AI_SECRET'),
+        'internal_secret' => env('INTERNAL_WEBHOOK_SECRET', 'ROKTODUT_INTERNAL_SECRET'),
+        'nlp_placeholder_phone' => env('NLP_PLACEHOLDER_PHONE', '00000000000'),
+    ],
+
+    'gemini' => [
+        'api_key' => env('GEMINI_API_KEY', ''),
+        'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+        'max_output_tokens' => env('GEMINI_MAX_OUTPUT_TOKENS', 768),
     ],
 
 ];

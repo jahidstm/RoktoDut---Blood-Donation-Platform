@@ -7,10 +7,10 @@
 
 
     {{-- Header Section --}}
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 scroll-reveal" data-scroll-reveal>
         <div>
             <h1 class="text-3xl font-black text-slate-900 tracking-tight">রিকোয়েস্ট ডিটেইলস</h1>
-            <p class="text-slate-500 font-medium mt-1">Accepted ডোনার লিস্ট এবং স্ট্যাটাস</p>
+            <p class="text-slate-500 font-medium mt-1">অ্যাকসেপ্টেড ডোনার তালিকা এবং স্ট্যাটাস</p>
         </div>
         
         <a href="{{ route('requests.index') }}" class="shrink-0 bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-extrabold py-2.5 px-5 rounded-xl shadow-sm transition-colors flex items-center gap-2">
@@ -19,7 +19,7 @@
     </div>
 
     {{-- রিকোয়েস্ট কার্ড --}}
-    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm scroll-reveal" data-scroll-reveal>
         <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
                 <div class="text-lg font-extrabold truncate">{{ $bloodRequest->patient_name ?? 'রোগী' }}</div>
@@ -37,7 +37,7 @@
                         x-data
                         @click="$dispatch('open-modal', 'report-blood-request')"
                         class="inline-flex items-center rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-black text-red-700 hover:bg-red-50">
-                    Report
+                    রিপোর্ট করুন
                 </button>
             </div>
         </div>
@@ -127,7 +127,7 @@
         $canRenew = $isOwner && ($isExpiredStatus || ($isPastNeededAt && $isPendingLikeStatus));
     @endphp
 
-    <div x-data="{ renewOpen: {{ ($errors->has('needed_at') || $errors->has('urgency')) ? 'true' : 'false' }} }" class="mt-6 mb-6 p-6 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+    <div x-data="{ renewOpen: {{ ($errors->has('needed_at') || $errors->has('urgency')) ? 'true' : 'false' }} }" class="mt-6 mb-6 p-6 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col md:flex-row gap-4 items-start md:items-center justify-between scroll-reveal" data-scroll-reveal>
         <div>
             <h3 class="text-base font-black text-slate-800">আপনার সিদ্ধান্ত (Action)</h3>
             <p class="text-sm text-slate-500 font-medium">এই রিকোয়েস্টের জন্য আপনার সাড়া দিন</p>
@@ -146,7 +146,7 @@
                 <form method="POST" action="{{ route('requests.fulfill', $bloodRequest) }}">
                     @csrf
                     <button class="px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black shadow-sm transition">
-                        Mark as Fulfilled
+                        রক্তদান সম্পন্ন হিসেবে চিহ্নিত করুন
                     </button>
                 </form>
             @endif
@@ -190,7 +190,7 @@
                         @csrf
                         <input type="hidden" name="status" value="declined" />
                         <button class="px-8 py-3 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 text-slate-800 font-black transition">
-                            Decline
+                            ডিক্লাইন
                         </button>
                     </form>
                     @endif
@@ -219,11 +219,16 @@
                         </form>
                     </div>
                 @elseif ($myResponse->status === 'accepted')
-                    <div class="flex items-center gap-4">
+                    <div class="flex flex-wrap items-center gap-4">
                         <span class="px-6 py-3 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 font-black flex items-center gap-2">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                             রোগী আপনার রিকোয়েস্ট অ্যাকসেপ্ট করেছেন
                         </span>
+
+                        <a href="{{ route('chat.show', $myResponse->id) }}" class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold transition-colors shadow-sm flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                            রোগীর সাথে চ্যাট করুন
+                        </a>
                     </div>
                 @elseif ($myResponse->status === 'rejected')
                     <div class="flex items-center gap-4">
@@ -253,7 +258,7 @@
             
             @if(strtolower($bloodRequest->status) === 'fulfilled')
                 <div class="px-8 py-3 rounded-xl bg-emerald-100 text-emerald-800 font-black border border-emerald-200">
-                    এই রিকোয়েস্টটি সম্পন্ন হয়েছে (Fulfilled)
+                    এই রিকোয়েস্টটি সম্পন্ন হয়েছে
                 </div>
             @endif
         </div>
@@ -296,7 +301,7 @@
 
                         <div class="pt-1 flex items-center justify-end gap-2">
                             <button type="button" @click="renewOpen = false" class="px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-bold hover:bg-slate-50">
-                                Cancel
+                                বাতিল
                             </button>
                             <button type="submit" class="px-5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-black">
                                 রিনিউ সাবমিট
@@ -336,7 +341,7 @@
                            class="w-full rounded-lg border-slate-300 text-sm font-semibold focus:border-violet-500 focus:ring-violet-500">
                 </div>
 
-                <button type="submit" class="w-full md:w-auto px-4 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-black">
+                <button type="submit" class="w-full px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-black flex items-center justify-center h-[42px] mt-auto">
                     Auto Plan চালু করুন
                 </button>
             </form>
@@ -347,6 +352,23 @@
     @if($myResponse && strtolower($myResponse->status) === 'accepted' && $myResponse->verification_status === 'pending')
         <div x-data="{ claimMethod: 'pin', fileName: null }" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mt-6 mb-6">
             <div class="px-6 py-4 bg-slate-50 border-b border-slate-100">
+                <style>
+                    .verify-tab-active {
+                        background-color: #dc2626 !important;
+                        color: #ffffff !important;
+                        border-color: transparent !important;
+                        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                    }
+                    .verify-tab-inactive {
+                        background-color: #e2e8f0 !important;
+                        color: #475569 !important;
+                        border-color: transparent !important;
+                    }
+                    .verify-tab-inactive:hover {
+                        background-color: #cbd5e1 !important;
+                        color: #1e293b !important;
+                    }
+                </style>
                 <h3 class="text-lg font-extrabold text-slate-800">রক্তদান কনফার্ম করুন</h3>
                 <p class="text-sm font-medium text-slate-500">পয়েন্ট এবং ব্যাজ পেতে আপনার রক্তদান ভেরিফাই করুন。</p>
             </div>
@@ -355,11 +377,17 @@
                 @csrf
                 
                 {{-- Method Selector (Tabs) --}}
-                <div class="flex p-1 bg-slate-100 rounded-xl mb-6">
-                    <button type="button" @click="claimMethod = 'pin'" :class="{'bg-white shadow-sm text-red-600': claimMethod === 'pin', 'text-slate-500 hover:text-slate-700': claimMethod !== 'pin'}" class="flex-1 py-2.5 text-sm font-bold rounded-lg transition-all">
+                <div class="flex bg-slate-100 p-1.5 rounded-xl mb-6 shadow-inner border border-slate-200 gap-2" role="tablist">
+                    <button type="button" @click="claimMethod = 'pin'" 
+                            :class="claimMethod == 'pin' ? 'verify-tab-active' : 'verify-tab-inactive'"
+                            role="tab"
+                            class="flex-1 flex justify-center items-center py-2.5 text-center text-sm font-extrabold rounded-lg transition-all duration-200 border">
                         পিন কোড (ইনস্ট্যান্ট)
                     </button>
-                    <button type="button" @click="claimMethod = 'image'" :class="{'bg-white shadow-sm text-red-600': claimMethod === 'image', 'text-slate-500 hover:text-slate-700': claimMethod !== 'image'}" class="flex-1 py-2.5 text-sm font-bold rounded-lg transition-all">
+                    <button type="button" @click="claimMethod = 'image'" 
+                            :class="claimMethod == 'image' ? 'verify-tab-active' : 'verify-tab-inactive'"
+                            role="tab"
+                            class="flex-1 flex justify-center items-center py-2.5 text-center text-sm font-extrabold rounded-lg transition-all duration-200 border">
                         ছবি আপলোড (রিভিউ)
                     </button>
                 </div>
@@ -377,7 +405,7 @@
                 {{-- Image Upload Block --}}
                 <div x-show="claimMethod === 'image'" x-transition.opacity style="display: none;" class="space-y-4">
                     <label class="block text-sm font-bold text-slate-700">প্রমাণ আপলোড করুন:</label>
-                    <div class="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:bg-slate-50 transition cursor-pointer relative" :class="fileName ? 'bg-red-50 border-red-300' : ''">
+                    <div class="border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition cursor-pointer relative" :class="fileName ? 'bg-red-50 border-red-300' : ''">
                         <input type="file" name="proof_image" accept="image/*,application/pdf" @change="fileName = $event.target.files[0].name" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                         
                         <svg class="mx-auto h-10 w-10 text-slate-400 mb-3" :class="fileName ? 'text-red-500' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
@@ -388,7 +416,7 @@
                     @error('proof_image') <p class="text-red-600 text-xs font-bold text-center mt-1">{{ $message }}</p> @enderror
                 </div>
 
-                <button type="submit" class="w-full mt-6 bg-red-600 hover:bg-red-700 text-white font-black py-3.5 rounded-xl shadow-sm transition">
+                <button type="submit" class="w-full flex justify-center items-center mt-6 bg-red-600 hover:bg-red-700 text-white font-black py-3.5 rounded-xl shadow-sm transition text-center">
                     কনফার্ম করুন
                 </button>
             </form>
@@ -488,17 +516,23 @@
                                             অনুমোদিত
                                         </div>
                                     </div>
-                                    <button type="button"
-                                            class="reveal-btn w-full sm:w-auto shrink-0 px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-sm transition-colors shadow-sm"
-                                            data-url="{{ route('requests.donors.reveal_phone', ['bloodRequest' => $bloodRequest->id, 'donor' => $resp->user_id]) }}"
-                                            data-target="phone-{{ $resp->user_id }}">
-                                        নম্বর দেখুন (Reveal)
-                                    </button>
+                                    <div class="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                                        <button type="button"
+                                                class="reveal-btn flex-1 sm:flex-none px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-sm transition-colors shadow-sm"
+                                                data-url="{{ route('requests.donors.reveal_phone', ['bloodRequest' => $bloodRequest->id, 'donor' => $resp->user_id]) }}"
+                                                data-target="phone-{{ $resp->user_id }}">
+                                            নম্বর দেখুন (Reveal)
+                                        </button>
+                                        <a href="{{ route('chat.show', $resp->id) }}" class="flex-1 sm:flex-none px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-sm transition-colors shadow-sm flex items-center justify-center gap-2">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                                            চ্যাট
+                                        </a>
+                                    </div>
                                 </div>
 
                                 <div class="text-sm font-semibold text-slate-700 mb-3 p-3 bg-white border border-emerald-100 rounded-lg flex items-center gap-2">
                                     <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
-                                    <span id="phone-{{ $resp->user_id }}" class="font-black text-slate-900 tracking-wider">Hidden</span>
+                                    <span id="phone-{{ $resp->user_id }}" class="font-black text-slate-900 tracking-wider">লুকানো</span>
                                 </div>
 
                                 {{-- 🎯 রোগীর লোকের জন্য PIN Display Box --}}
@@ -510,11 +544,11 @@
                                     </div>
                                     <div class="text-right">
                                         @if($resp->verification_status === 'verified')
-                                            <span class="bg-emerald-100 text-emerald-700 text-[10px] font-black px-2 py-1 rounded uppercase tracking-wide">Verified</span>
+                                            <span class="bg-emerald-100 text-emerald-700 text-[10px] font-black px-2 py-1 rounded uppercase tracking-wide">সত্যায়িত</span>
                                         @elseif($resp->verification_status === 'claimed')
-                                            <span class="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-1 rounded uppercase tracking-wide">Reviewing</span>
+                                            <span class="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-1 rounded uppercase tracking-wide">রিভিউয়ে</span>
                                         @else
-                                            <span class="bg-slate-200 text-slate-500 text-[10px] font-black px-2 py-1 rounded uppercase tracking-wide">Pending</span>
+                                            <span class="bg-slate-200 text-slate-500 text-[10px] font-black px-2 py-1 rounded uppercase tracking-wide">অপেক্ষমাণ</span>
                                         @endif
                                     </div>
                                 </div>

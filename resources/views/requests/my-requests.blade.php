@@ -1,9 +1,24 @@
-@extends('layouts.app')
+@php
+    $layout = 'layouts.app';
+    if(auth()->check()){
+        $u = auth()->user();
+        if($u->isAdmin()) {
+            $layout = 'layouts.admin-dashboard';
+        } elseif($u->isOrgAdmin()) {
+            $layout = 'layouts.org-dashboard';
+        } elseif($u->isDonor()) {
+            $layout = 'layouts.donor-dashboard';
+        } else {
+            $layout = 'layouts.user-dashboard';
+        }
+    }
+@endphp
+@extends($layout)
 
 @section('title', 'আমার রিকোয়েস্ট — রক্তদূত')
 
 @section('content')
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" data-panel-id="my-requests">
     @if(session('success'))
         <div class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800 font-bold">
             {{ session('success') }}
@@ -16,7 +31,7 @@
         </div>
     @endif
 
-    <div class="flex items-start justify-between gap-4 mb-8">
+    <div class="flex items-start justify-between gap-4 mb-8 scroll-reveal" data-scroll-reveal>
         <div>
             <h1 class="text-2xl font-extrabold tracking-tight">আমার রিকোয়েস্ট</h1>
             <p class="text-slate-500 font-medium mt-1">আপনার তৈরি করা সকল রিকোয়েস্ট (Expired সহ)</p>
@@ -29,7 +44,7 @@
     </div>
 
     @if($requests->isEmpty())
-        <div class="rounded-2xl border border-slate-200 bg-white p-10 text-center">
+        <div class="rounded-2xl border border-slate-200 bg-white p-10 text-center scroll-reveal" data-scroll-reveal>
             <div class="text-slate-900 font-extrabold text-lg">আপনার কোনো রিকোয়েস্ট পাওয়া যায়নি</div>
             <div class="text-slate-500 text-sm mt-2 font-medium">রিকোয়েস্ট তৈরি করলে এখানে দেখতে পাবেন।</div>
         </div>
@@ -44,15 +59,15 @@
                     $canRenew = $isExpiredStatus || ($isPastNeededAt && $isPendingLikeStatus);
 
                     $statusMap = [
-                        'pending' => ['label' => 'Pending', 'cls' => 'bg-amber-100 text-amber-800 border-amber-200'],
-                        'in_progress' => ['label' => 'In Progress', 'cls' => 'bg-indigo-100 text-indigo-800 border-indigo-200'],
-                        'expired' => ['label' => 'Expired', 'cls' => 'bg-rose-100 text-rose-800 border-rose-200'],
-                        'fulfilled' => ['label' => 'Fulfilled', 'cls' => 'bg-emerald-100 text-emerald-800 border-emerald-200'],
+                        'pending'     => ['label' => 'অপেক্ষমাণ', 'cls' => 'bg-amber-100 text-amber-800 border-amber-200'],
+                        'in_progress' => ['label' => 'প্রক্রিয়াধীন', 'cls' => 'bg-indigo-100 text-indigo-800 border-indigo-200'],
+                        'expired'     => ['label' => 'মেয়াদোত্তীর্ণ', 'cls' => 'bg-rose-100 text-rose-800 border-rose-200'],
+                        'fulfilled'   => ['label' => 'সম্পন্ন', 'cls' => 'bg-emerald-100 text-emerald-800 border-emerald-200'],
                     ];
                     $statusInfo = $statusMap[$currentStatus] ?? ['label' => strtoupper((string) $req->status), 'cls' => 'bg-slate-100 text-slate-700 border-slate-200'];
                 @endphp
 
-                <article x-data="{ renewOpen: false }" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <article x-data="{ renewOpen: false }" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm scroll-reveal" data-scroll-reveal>
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
                             <h3 class="text-lg font-black tracking-tight text-slate-900 truncate">
@@ -91,7 +106,7 @@
 
                         <a href="{{ route('requests.show', $req->id) }}"
                            class="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50">
-                            View Details
+                            বিস্তারিত দেখুন
                         </a>
                     </div>
 

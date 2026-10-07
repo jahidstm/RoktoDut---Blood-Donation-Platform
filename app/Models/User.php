@@ -75,6 +75,11 @@ class User extends Authenticatable // implements MustVerifyEmail — আপা�
         'provider_id',
         'is_shadowbanned',
         'opt_out_org_broadcast',
+        'dfi_score',
+        'priority_tier',
+        'super_critical_tokens',
+        'suspension_reason',
+        'medical_clearance_document',
         // 🤖 Telegram
         'telegram_chat_id',
         'telegram_connected_at',
@@ -93,6 +98,8 @@ class User extends Authenticatable // implements MustVerifyEmail — আপা�
         'nid_number',           // Privacy Shield
         'nid_number_hash',
         'fcm_token',
+        'suspension_reason',
+        'medical_clearance_document',
     ];
 
     protected function casts(): array
@@ -111,6 +118,9 @@ class User extends Authenticatable // implements MustVerifyEmail — আপা�
             'last_login_at'     => 'datetime',
             'date_of_birth'     => 'date',
             'last_donated_at'   => 'date',
+            'last_whole_blood_donated_at' => 'date',
+            'last_plasma_donated_at'      => 'date',
+            'last_platelet_donated_at'    => 'date',
             'is_onboarded'      => 'boolean',
             'is_campus_hero'    => 'boolean',
             'is_shadowbanned'   => 'boolean',
@@ -118,6 +128,8 @@ class User extends Authenticatable // implements MustVerifyEmail — আপা�
             'nid_uploaded_at' => 'datetime',
             'nid_retention_until' => 'datetime',
             'nid_last_accessed_at' => 'datetime',
+            'dfi_score' => 'decimal:2',
+            'super_critical_tokens' => 'integer',
         ];
     }
 
@@ -150,6 +162,39 @@ class User extends Authenticatable // implements MustVerifyEmail — আপা�
         return $this->hasMany(Donation::class, 'donor_id');
     }
 
+    /**
+     * Donor's calendar availability rules.
+     */
+    public function availabilities(): HasMany
+    {
+        return $this->hasMany(DonorAvailability::class);
+    }
+
+    /**
+     * Check if this donor is calendar-available right now.
+     * Used by AI dispatch for non-emergency requests.
+     *
+     * Logic:
+     *  - No active rules → fall back to is_available toggle (backward-compatible)
+     *  - Has active rules → at least one must cover current datetime
+     */
+    public function isCalendarAvailableNow(): bool
+    {
+        $activeRules = $this->availabilities()->where('is_active', true)->get();
+
+        if ($activeRules->isEmpty()) {
+            return (bool) $this->is_available;
+        }
+
+        $now = now()->setTimezone('Asia/Dhaka');
+        return $activeRules->some(fn ($rule) => $rule->isAvailableAt($now));
+    }
+
+    public function healthRecords(): HasMany
+    {
+        return $this->hasMany(HealthRecord::class);
+    }
+
     public function bloodRequests(): HasMany
     {
         return $this->hasMany(BloodRequest::class, 'requested_by');
@@ -158,6 +203,11 @@ class User extends Authenticatable // implements MustVerifyEmail — আপা�
     public function bloodRequestResponses(): HasMany
     {
         return $this->hasMany(BloodRequestResponse::class, 'donor_user_id');
+    }
+
+    public function donorResponseLogs(): HasMany
+    {
+        return $this->hasMany(DonorResponseLog::class, 'donor_id');
     }
 
     public function bloodRequestReports(): HasMany
@@ -256,31 +306,46 @@ class User extends Authenticatable // implements MustVerifyEmail — আপা�
         return $this->cooldown_until && $this->cooldown_until->isFuture();
     }
 
-    // 🎯 FIX: 'last_donated_at' কলাম ব্যবহার করা হলো
     public function canDonate(mixed $componentType = null): bool
     {
-        if (!$this->last_donated_at) {
-            return true;
-        }
-        $cooldownDays = $this->resolveCooldownDaysForComponent($componentType);
-        return $this->last_donated_at->copy()->addDays($cooldownDays)->isPast();
+        return $this->daysUntilNextDonation($componentType) === 0;
     }
 
-    // 🎯 FIX: 'last_donated_at' কলাম ব্যবহার করা হলো
     public function daysUntilNextDonation(mixed $componentType = null): int
     {
-        if (!$this->last_donated_at) {
+        $value = $this->resolveComponentValue($componentType);
+
+        $lastDonatedAt = match ($value) {
+            BloodComponentType::PLASMA->value    => $this->last_plasma_donated_at,
+            BloodComponentType::PLATELETS->value => $this->last_platelet_donated_at,
+            default                              => $this->last_whole_blood_donated_at ?? $this->last_donated_at,
+        };
+
+        if (!$lastDonatedAt) {
             return 0;
         }
-        $cooldownDays = $this->resolveCooldownDaysForComponent($componentType);
-        $nextDonationDate = $this->last_donated_at->copy()->addDays($cooldownDays);
+
+        $defaultCooldown = strtolower((string) $this->gender) === 'female' ? 120 : 90;
+
+        $cooldownDays = match ($value) {
+            BloodComponentType::PLASMA->value    => 28,
+            BloodComponentType::PLATELETS->value => 14,
+            default                              => $defaultCooldown,
+        };
+
+        $nextDonationDate = $lastDonatedAt->copy()->addDays($cooldownDays);
         return max(0, (int) now()->diffInDays($nextDonationDate, false));
     }
 
-    // 🎯 FIX: 'last_donated_at' কলাম ব্যবহার করা হলো
     public function getNextEligibleDateAttribute()
     {
-        return $this->last_donated_at ? $this->last_donated_at->copy()->addDays(120) : null;
+        $lastDonatedAt = $this->last_whole_blood_donated_at ?? $this->last_donated_at;
+        if (!$lastDonatedAt) {
+            return null;
+        }
+
+        $cooldownDays = strtolower((string) $this->gender) === 'female' ? 120 : 90;
+        return $lastDonatedAt->copy()->addDays($cooldownDays);
     }
 
     public function getIsEligibleToDonateAttribute()
@@ -288,13 +353,11 @@ class User extends Authenticatable // implements MustVerifyEmail — আপা�
         return $this->canDonate();
     }
 
-    private function resolveCooldownDaysForComponent(mixed $componentType = null): int
+    private function resolveComponentValue(mixed $componentType): string
     {
-        $value = $componentType instanceof BloodComponentType
+        return $componentType instanceof BloodComponentType
             ? $componentType->value
             : (string) ($componentType ?? BloodComponentType::WHOLE_BLOOD->value);
-
-        return $value === BloodComponentType::PLATELETS->value ? 14 : 120;
     }
 
     public function scopeInSameOrganization($query)
@@ -377,4 +440,30 @@ class User extends Authenticatable // implements MustVerifyEmail — আপা�
 
         return $completion;
     }
+
+    // ── Chronic Patient Registry ─────────────────────────────────
+
+    /**
+     * রোগীর দীর্ঘমেয়াদী সাবস্ক্রিপশন (chronic request manager হিসেবে)
+     */
+    public function chronicSubscriptions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ChronicRequestSubscription::class, 'user_id');
+    }
+
+    /**
+     * ডোনার হিসেবে আমি যে chronic patient-দের buddy হয়েছি
+     */
+    public function buddySubscriptions(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
+    {
+        return $this->hasManyThrough(
+            ChronicRequestSubscription::class,
+            ChronicSubscriptionBuddy::class,
+            'donor_user_id',        // ChronicSubscriptionBuddy.donor_user_id
+            'id',                   // ChronicRequestSubscription.id
+            'id',                   // User.id
+            'subscription_id'       // ChronicSubscriptionBuddy.subscription_id
+        );
+    }
 }
+

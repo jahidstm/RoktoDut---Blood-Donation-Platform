@@ -8,12 +8,13 @@ use App\Services\AuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use App\Notifications\ReportResolvedNotification;
 
 class ReportController extends Controller
 {
     public function index(Request $request): View
     {
-        $status = $request->query('status');
+        $status = $request->query('status', 'open'); // Default to 'open'
         $validStatuses = ['open', 'reviewing', 'resolved', 'dismissed'];
 
         $reports = Report::query()
@@ -70,6 +71,11 @@ class ReportController extends Controller
                 'admin_note' => $validated['admin_note'] ?? null,
             ],
         );
+        
+        // Notify the reporter if the report is resolved or dismissed
+        if ($isResolved && $report->reporter) {
+            $report->reporter->notify(new ReportResolvedNotification($report));
+        }
 
         return back()->with('success', 'রিপোর্ট স্ট্যাটাস আপডেট হয়েছে।');
     }

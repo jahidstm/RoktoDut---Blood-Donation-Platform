@@ -6,14 +6,13 @@ use App\Enums\BloodComponentType;
 use App\Enums\UrgencyLevel;
 use App\Events\DonationCompleted;
 use App\Http\Requests\StoreBloodRequestRequest;
-use App\Jobs\DispatchEmergencyAlert;
-use App\Jobs\SendEmergencyBloodRequestNotificationJob;
+use App\Jobs\SmartBloodRequestBroadcastJob;
 use App\Models\BloodRequest;
 use App\Models\ChronicRequestSubscription;
 use App\Models\BloodRequestResponse;
-use App\Models\District;
-use App\Services\DonorMatchingService;
+use App\Models\User;
 use App\Services\MathCaptchaService;
+use App\Services\PriorityQueueService;
 use App\Support\PhoneNormalizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -35,7 +34,8 @@ class BloodRequestController extends Controller
                 'requester:id,name',
                 'responses' => fn($q) => $q->where('user_id', $userId),
                 'district:id,name', // 🚀 ইগার লোডিং (পারফরম্যান্স অপ্টিমাইজেশন)
-                'upazila:id,name'
+                'upazila:id,name',
+                'hospital:id,name,name_bn'
             ])
             ->withCount([
                 'responses as accepted_responses_count' => fn($q) => $q->where('status', 'accepted'),
@@ -49,6 +49,10 @@ class BloodRequestController extends Controller
         // 🎯 স্মার্ট ফিল্টারিং লজিক (Relational IDs)
         if ($request->filled('blood_group')) {
             $query->where('blood_group', $request->blood_group);
+        }
+
+        if ($request->filled('component_type')) {
+            $query->where('component_type', $request->component_type);
         }
 
         if ($request->filled('division_id')) {
@@ -68,7 +72,7 @@ class BloodRequestController extends Controller
             ->orderByRaw("CASE LOWER(urgency) WHEN 'emergency' THEN 1 WHEN 'urgent' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END")
             // প্রায়োরিটি ২: যার ডেডলাইন সবচেয়ে কাছে (Ascending)
             ->orderBy('needed_at', 'asc')
-            ->paginate(10)
+            ->paginate(12)
             ->withQueryString();
 
         return view('requests.index', compact('requests'));
@@ -84,7 +88,7 @@ class BloodRequestController extends Controller
         $hasValidGuestToken = is_string($guestToken) && strlen($guestToken) >= 32 && strlen($guestToken) <= 64;
 
         $query = BloodRequest::query()
-            ->with(['district:id,name', 'upazila:id,name']);
+            ->with(['district:id,name', 'upazila:id,name', 'hospital:id,name,name_bn']);
 
         if ($userId || $hasValidGuestToken) {
             $query->where(function ($q) use ($userId, $guestToken, $hasValidGuestToken) {
@@ -110,6 +114,48 @@ class BloodRequestController extends Controller
             ->withQueryString();
 
         return view('requests.my-requests', compact('requests'));
+    }
+
+    /**
+     * "আমার রিকোয়েস্টে যারা যারা সাড়া দিয়েছেন" তালিকা।
+     */
+    public function myResponses(Request $request)
+    {
+        $userId = $request->user()?->id;
+        $guestToken = $request->cookie('rd_guest_token');
+        $hasValidGuestToken = is_string($guestToken) && strlen($guestToken) >= 32 && strlen($guestToken) <= 64;
+
+        $query = BloodRequestResponse::query()
+            ->with([
+                'bloodRequest:id,patient_name,blood_group,needed_at,status',
+                'user:id,name,phone,blood_group'
+            ]);
+
+        if ($userId || $hasValidGuestToken) {
+            $query->whereHas('bloodRequest', function ($q) use ($userId, $guestToken, $hasValidGuestToken) {
+                $q->where(function ($q2) use ($userId, $guestToken, $hasValidGuestToken) {
+                    if ($userId) {
+                        $q2->where('requested_by', $userId);
+                    }
+                    if ($hasValidGuestToken) {
+                        if ($userId) {
+                            $q2->orWhere('guest_token', $guestToken);
+                        } else {
+                            $q2->where('guest_token', $guestToken);
+                        }
+                    }
+                });
+            });
+        } else {
+            $query->whereRaw('1 = 0');
+        }
+
+        $responses = $query
+            ->orderByDesc('created_at')
+            ->paginate(15)
+            ->withQueryString();
+
+        return view('requests.my-responses', compact('responses'));
     }
 
     /**
@@ -282,27 +328,24 @@ class BloodRequestController extends Controller
         // ১. রিকোয়েস্ট সেভ করা
         $bloodRequest = BloodRequest::create($data);
 
-        // ১.১ FCM push dispatch (queue)
-        DispatchEmergencyAlert::dispatch($bloodRequest)->afterCommit();
-
-        // ২. জেলার নাম বের করা (নোটিফিকেশনে দেখানোর জন্য)
-        $districtName = District::find($bloodRequest->district_id)->name ?? 'আপনার';
-
-        // ⚙️ ৩. স্মার্ট ডোনার ম্যাচিং সার্ভিস (fixes last_donation_date bug)
-        $donors = app(DonorMatchingService::class)->match($bloodRequest);
-
-        // 🚀 ৪. টার্গেটেড নোটিফিকেশন ব্যাকগ্রাউন্ড জবে পাঠানো (UI ব্লক হবে না)
-        if ($donors->isNotEmpty()) {
-            SendEmergencyBloodRequestNotificationJob::dispatch(
-                bloodRequestId: $bloodRequest->id,
-                districtName: $districtName,
-                donorIds: $donors->pluck('id')->all()
+        // ২. Priority Routing (Anti-Gaming)
+        $useSuperCritical = $request->boolean('use_super_critical_token');
+        if ($request->user()) {
+            app(PriorityQueueService::class)->applyPriorityForRequest(
+                requester: $request->user(),
+                request: $bloodRequest,
+                useSuperCriticalToken: $useSuperCritical
             );
         }
 
+        SmartBloodRequestBroadcastJob::dispatch(
+            bloodRequestId: $bloodRequest->id,
+            topK: 15
+        )->afterCommit();
+
         $successMsg = $data['is_phone_hidden']
             ? '🛡️ আপনার রিকোয়েস্ট তৈরি হয়েছে! নম্বর গোপন রাখা হয়েছে — ডোনাররা সরাসরি আপনার Telegram-এ নিজের নম্বর পাঠাবে।'
-            : 'আপনার রক্তের রিকোয়েস্টটি সফলভাবে তৈরি হয়েছে এবং ' . $donors->count() . ' জন ডোনারকে অ্যালার্ট পাঠানো হয়েছে।';
+            : 'আপনার রক্তের রিকোয়েস্টটি সফলভাবে তৈরি হয়েছে। শীর্ষ ডোনারদের কাছে নোটিফিকেশন পাঠানো হচ্ছে।';
 
         return redirect()->route('requests.show', $bloodRequest)
             ->with('success', $successMsg);
@@ -315,6 +358,10 @@ class BloodRequestController extends Controller
     public function fulfill(Request $request, BloodRequest $bloodRequest)
     {
         Gate::authorize('markFulfilled', $bloodRequest);
+
+        if ($bloodRequest->status === 'fulfilled') {
+            return back()->with('error', 'এই রিকোয়েস্টটি ইতিমধ্যে সম্পন্ন করা হয়েছে।');
+        }
 
         $bloodRequest->update(['status' => 'fulfilled']);
 
@@ -394,7 +441,7 @@ class BloodRequestController extends Controller
                         $fail('জরুরি (Emergency) রিকোয়েস্টের জন্য রক্তের প্রয়োজন অবশ্যই পরবর্তী ২৪ ঘণ্টার মধ্যে হতে হবে।');
                     }
 
-                    if ($value === UrgencyLevel::URGENT->value && $neededAt->gt(now()->addHours(72))) {
+                    if ($value === UrgencyLevel::HIGH->value && $neededAt->gt(now()->addHours(72))) {
                         $fail('আর্জেন্ট (Urgent) রিকোয়েস্টের জন্য সময় অবশ্যই পরবর্তী ৭২ ঘণ্টার মধ্যে হতে হবে।');
                     }
                 },
@@ -420,7 +467,8 @@ class BloodRequestController extends Controller
             'requester:id,name',
             'responses.user:id,name,phone',
             'district:id,name',
-            'upazila:id,name'
+            'upazila:id,name',
+            'hospital:id,name,name_bn'
         ]);
 
         $accepted = $bloodRequest->responses->where('status', 'accepted')->values();

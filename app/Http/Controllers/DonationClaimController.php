@@ -42,6 +42,12 @@ class DonationClaimController extends Controller
                 ]);
 
                 $this->notifyAdminsForProofReview($response, 'claim');
+                
+                // 🔔 Notify the recipient
+                $recipient = User::find($response->bloodRequest->requested_by);
+                if ($recipient) {
+                    $recipient->notify(new \App\Notifications\BloodResponseNotification($response->bloodRequest, Auth::user(), 'claimed'));
+                }
 
                 return back()->with('success', '🎉 পিন মিলেছে! আপনার দাবিটি (Claim) রেকর্ড করা হয়েছে। গ্রহীতা বা অ্যাডমিন রিভিউয়ের পর আপনার পয়েন্ট ও ব্যাজ যুক্ত হবে।');
             }
@@ -57,6 +63,12 @@ class DonationClaimController extends Controller
             ]);
 
             $this->notifyAdminsForProofReview($response, 'claim');
+            
+            // 🔔 Notify the recipient
+            $recipient = User::find($response->bloodRequest->requested_by);
+            if ($recipient) {
+                $recipient->notify(new \App\Notifications\BloodResponseNotification($response->bloodRequest, Auth::user(), 'claimed'));
+            }
 
             return back()->with('success', '📸 আপনার প্রমাণটি জমা হয়েছে। যাচাইয়ের পর পয়েন্ট ও ব্যাজ যুক্ত হবে।');
         }
@@ -74,6 +86,10 @@ class DonationClaimController extends Controller
         $request->validate(['decision' => 'required|in:approve,dispute']);
 
         if ($request->decision === 'approve') {
+            if ($response->verification_status === 'verified') {
+                return back()->with('error', 'এই ডোনেশনটি ইতিমধ্যে ভেরিফাই করা হয়েছে।');
+            }
+
             $response->update([
                 'verification_status' => 'verified',
                 'fulfilled_at'        => now(),
@@ -98,12 +114,16 @@ class DonationClaimController extends Controller
                     }
                 }
 
-                $this->gamification->processDonationReward(
-                    donor: $donor,
-                    bloodRequest: $bloodRequest ?? new \App\Models\BloodRequest(),
-                    isFirstResponder: $isFirstResponder,
-                    isMidnightSavior: $isMidnightSavior
-                );
+                try {
+                    $this->gamification->processDonationReward(
+                        donor: $donor,
+                        bloodRequest: $bloodRequest ?? new \App\Models\BloodRequest(),
+                        isFirstResponder: $isFirstResponder,
+                        isMidnightSavior: $isMidnightSavior
+                    );
+                } catch (\RuntimeException $e) {
+                    return back()->with('error', $e->getMessage());
+                }
 
                 // 🎯 গ্রহীতার রিভিউ পয়েন্ট (+১০)
                 $this->gamification->awardReviewPoints($donor);
@@ -150,6 +170,10 @@ class DonationClaimController extends Controller
         }
 
         $request->validate(['status' => 'required|in:verified,rejected']);
+
+        if ($response->verification_status === 'verified' && $request->status === 'verified') {
+            return back()->with('error', 'এই ডোনেশনটি ইতিমধ্যে ভেরিফাই করা হয়েছে।');
+        }
 
         if ($request->status === 'verified') {
             $response->update([

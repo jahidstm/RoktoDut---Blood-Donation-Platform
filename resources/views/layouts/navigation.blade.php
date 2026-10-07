@@ -2,48 +2,76 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center h-16">
 
-            {{-- Left Side: Logo & Desktop Nav --}}
-            <div class="flex items-center gap-8">
-                <div class="shrink-0 flex items-center">
-                    <a href="{{ route('home') }}" class="flex items-center gap-2">
-                        <x-application-logo class="block h-9 w-auto fill-current text-red-600" />
-                        <span class="text-lg font-black text-slate-900 tracking-tight">রক্তদূত</span>
-                    </a>
-                </div>
+            {{-- Left Side: Logo --}}
+            <div class="shrink-0 flex items-center">
+                <a href="{{ route('home') }}" class="flex items-center gap-2">
+                    <x-application-logo class="block h-9 w-auto fill-current text-red-600" />
+                    <span class="text-lg font-black text-slate-900 tracking-tight">রক্তদূত</span>
+                </a>
+            </div>
 
-                {{-- Desktop Nav Links (5 exact items) --}}
-                <div class="hidden md:flex items-center gap-1 text-[15px] font-semibold text-slate-600">
+            {{-- Center: Desktop Nav Links --}}
+            <div class="hidden md:flex items-center justify-center">
+                <div class="flex items-center gap-1 p-1.5 bg-slate-100/80 border border-slate-200/60 rounded-full shadow-sm backdrop-blur-md">
                     <a href="{{ route('home') }}"
-                       class="px-3 py-2 rounded-lg hover:text-red-600 hover:bg-red-50 transition-colors {{ request()->routeIs('home') ? 'text-red-600 font-bold bg-red-50' : '' }}">
+                       class="relative px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-out
+                              {{ request()->routeIs('home') 
+                                 ? 'text-red-600 bg-white shadow-sm ring-1 ring-slate-900/5' 
+                                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60' }}">
                         হোম
                     </a>
                     @auth
                         <a href="{{ route('requests.index') }}"
-                           class="px-3 py-2 rounded-lg hover:text-red-600 hover:bg-red-50 transition-colors {{ request()->routeIs('requests.*') ? 'text-red-600 font-bold bg-red-50' : '' }}">
-                            রক্তদান
+                           class="relative px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-out
+                                  {{ request()->routeIs('requests.*') 
+                                     ? 'text-red-600 bg-white shadow-sm ring-1 ring-slate-900/5' 
+                                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60' }}">
+                            রক্তের অনুরোধ
                         </a>
                     @endauth
                     @guest
                         <a href="{{ route('public.requests.index') }}"
-                           class="px-3 py-2 rounded-lg hover:text-red-600 hover:bg-red-50 transition-colors {{ request()->routeIs('public.requests.*') ? 'text-red-600 font-bold bg-red-50' : '' }}">
-                            রক্তদান
+                           class="relative px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-out
+                                  {{ request()->routeIs('public.requests.*') 
+                                     ? 'text-red-600 bg-white shadow-sm ring-1 ring-slate-900/5' 
+                                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60' }}">
+                            রক্তের অনুরোধ
                         </a>
                     @endguest
-                    <a href="{{ route('requests.my-requests') }}"
-                       class="px-3 py-2 rounded-lg hover:text-red-600 hover:bg-red-50 transition-colors {{ request()->routeIs('requests.my-requests') ? 'text-red-600 font-bold bg-red-50' : '' }}">
-                        আমার রিকোয়েস্ট
-                    </a>
                     <a href="{{ route('search') }}"
-                       class="px-3 py-2 rounded-lg hover:text-red-600 hover:bg-red-50 transition-colors {{ request()->routeIs('search') ? 'text-red-600 font-bold bg-red-50' : '' }}">
+                       class="relative px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-out
+                              {{ request()->routeIs('search') 
+                                 ? 'text-red-600 bg-white shadow-sm ring-1 ring-slate-900/5' 
+                                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60' }}">
                         রক্তদাতা খুঁজুন
                     </a>
                     <a href="{{ route('leaderboard') }}"
-                       class="px-3 py-2 rounded-lg hover:text-red-600 hover:bg-red-50 transition-colors {{ request()->routeIs('leaderboard') ? 'text-red-600 font-bold bg-red-50' : '' }}">
-                        সেরা রক্তদাতা
+                       class="relative px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-out
+                              {{ request()->routeIs('leaderboard') 
+                                 ? 'text-red-600 bg-white shadow-sm ring-1 ring-slate-900/5' 
+                                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60' }}">
+                        লিডারবোর্ড
                     </a>
                     <a href="{{ route('blog.index') }}"
-                       class="px-3 py-2 rounded-lg hover:text-red-600 hover:bg-red-50 transition-colors {{ request()->routeIs('blog.*') ? 'text-red-600 font-bold bg-red-50' : '' }}">
+                       class="relative px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-out
+                              {{ request()->routeIs('blog.*') 
+                                 ? 'text-red-600 bg-white shadow-sm ring-1 ring-slate-900/5' 
+                                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60' }}">
                         স্বাস্থ্যবার্তা
+                    </a>
+                    <a href="{{ route('live-demand.index') }}"
+                       class="relative px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-out
+                              {{ request()->routeIs('live-demand.*') 
+                                 ? 'text-red-600 bg-white shadow-sm ring-1 ring-slate-900/5' 
+                                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60' }}">
+                        লাইভ ম্যাপ
+                    </a>
+                    <a href="{{ route('ambulances.index') }}"
+                       class="relative px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-out
+                              {{ request()->routeIs('ambulances.*') 
+                                 ? 'text-red-600 bg-white shadow-sm ring-1 ring-slate-900/5' 
+                                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60' }}">
+                        অ্যাম্বুলেন্স
                     </a>
                 </div>
             </div>
@@ -65,7 +93,7 @@
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                         </svg>
-                        @if(auth()->user()->unreadNotifications->count() > 0)
+                        @if(auth()->user() && auth()->user()->unreadNotifications->count() > 0)
                             <span class="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-black text-white shadow-sm ring-2 ring-white">
                                 {{ auth()->user()->unreadNotifications->count() }}
                             </span>
@@ -79,24 +107,50 @@
                          x-transition:leave="transition ease-in duration-75"
                          x-transition:leave-start="opacity-100 scale-100"
                          x-transition:leave-end="opacity-0 scale-95"
-                         class="absolute right-0 top-12 z-50 w-80 rounded-2xl bg-white shadow-xl ring-1 ring-slate-200"
+                         class="absolute right-4 sm:right-0 top-12 z-50 w-[calc(100vw-2rem)] sm:w-80 rounded-2xl bg-white shadow-xl ring-1 ring-slate-200"
                          style="display: none;">
-                        <div class="px-4 py-3 border-b border-slate-100 bg-slate-50 rounded-t-2xl">
+                        <div class="px-4 py-3 border-b border-slate-100 bg-slate-50 rounded-t-2xl flex justify-between items-center">
                             <h3 class="text-sm font-extrabold text-slate-800">নোটিফিকেশন</h3>
                         </div>
-                        <div class="max-h-80 overflow-y-auto p-4 text-center text-sm font-bold text-slate-400">
-                            আপাতত কোনো নোটিফিকেশন নেই।
+                        <div class="max-h-80 overflow-y-auto">
+                            @forelse(auth()->user()->unreadNotifications as $notification)
+                                <a href="{{ route('notifications.read', $notification->id) }}" class="block px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition">
+                                    <div class="text-sm text-slate-700 font-semibold mb-1 leading-snug">
+                                        {{ $notification->data['message'] ?? 'নতুন নোটিফিকেশন' }}
+                                    </div>
+                                    <div class="text-xs text-slate-500 font-medium">
+                                        {{ $notification->created_at->diffForHumans() }}
+                                    </div>
+                                </a>
+                            @empty
+                                <div class="p-4 text-center text-sm font-bold text-slate-400">
+                                    আপাতত কোনো নোটিফিকেশন নেই।
+                                </div>
+                            @endforelse
                         </div>
+                        @if(auth()->user()->unreadNotifications->count() > 0)
+                            <div class="p-2 bg-slate-50 border-t border-slate-100 text-center rounded-b-2xl">
+                                <form method="POST" action="{{ route('notifications.read-all') }}">
+                                    @csrf
+                                    <button type="submit" class="text-xs font-bold text-red-600 hover:text-red-700 w-full p-2 transition">সবগুলো পঠিত মার্ক করুন</button>
+                                </form>
+                            </div>
+                        @endif
                     </div>
                 </div>
 
                 {{-- Profile Dropdown --}}
+                @auth
                 <div class="flex items-center">
                     <x-dropdown align="right" width="48">
                         <x-slot name="trigger">
                             <button class="flex items-center gap-2 px-3 py-1.5 border border-slate-200 hover:border-slate-300 rounded-full bg-white hover:bg-slate-50 transition focus:outline-none">
-                                <div class="w-7 h-7 rounded-full bg-slate-800 text-white flex items-center justify-center text-xs font-black">
-                                    {{ mb_substr(Auth::user()->name, 0, 1) }}
+                                <div class="w-7 h-7 rounded-full bg-slate-800 text-white flex items-center justify-center text-xs font-black overflow-hidden">
+                                    @if(Auth::user()->avatar)
+                                        <img src="{{ asset('storage/' . Auth::user()->avatar) }}" alt="{{ Auth::user()->name }}" class="w-full h-full object-cover">
+                                    @else
+                                        {{ mb_substr(Auth::user()->name, 0, 1) }}
+                                    @endif
                                 </div>
                                 <span class="text-sm font-extrabold text-slate-700">{{ Auth::user()->name }}</span>
                                 <svg class="fill-current h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
@@ -111,6 +165,9 @@
                             <x-dropdown-link :href="route('requests.my-requests')" class="font-bold">
                                 আমার রিকোয়েস্ট
                             </x-dropdown-link>
+                            <x-dropdown-link :href="route('chronic.index')" class="font-bold">
+                                আমার দীর্ঘমেয়াদী রোগী
+                            </x-dropdown-link>
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf
                                 <x-dropdown-link :href="route('logout')" class="font-bold text-red-600"
@@ -121,6 +178,12 @@
                         </x-slot>
                     </x-dropdown>
                 </div>
+                @else
+                <div class="flex items-center gap-3">
+                    <a href="{{ route('login') }}" class="text-sm font-bold text-slate-600 hover:text-slate-900">লগইন</a>
+                    <a href="{{ route('register') }}" class="text-sm font-bold bg-slate-900 text-white px-4 py-2 rounded-xl hover:bg-slate-800 transition">রেজিস্টার</a>
+                </div>
+                @endauth
             </div>
 
             {{-- Mobile Hamburger Button --}}
@@ -143,12 +206,12 @@
             </x-responsive-nav-link>
             @auth
                 <x-responsive-nav-link :href="route('requests.index')" :active="request()->routeIs('requests.*')" class="font-bold">
-                    রক্তদান
+                    রক্তের অনুরোধ
                 </x-responsive-nav-link>
             @endauth
             @guest
                 <x-responsive-nav-link :href="route('public.requests.index')" class="font-bold">
-                    রক্তদান
+                    রক্তের অনুরোধ
                 </x-responsive-nav-link>
             @endguest
             <x-responsive-nav-link :href="route('requests.my-requests')" :active="request()->routeIs('requests.my-requests')" class="font-bold">
@@ -158,10 +221,16 @@
                 রক্তদাতা খুঁজুন
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('leaderboard')" :active="request()->routeIs('leaderboard')" class="font-bold">
-                সেরা রক্তদাতা
+                লিডারবোর্ড
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('blog.index')" :active="request()->routeIs('blog.*')" class="font-bold">
                 স্বাস্থ্যবার্তা
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('live-demand.index')" :active="request()->routeIs('live-demand.*')" class="font-bold">
+                লাইভ ম্যাপ
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('ambulances.index')" :active="request()->routeIs('ambulances.*')" class="font-bold">
+                অ্যাম্বুলেন্স
             </x-responsive-nav-link>
         </div>
         <div class="pt-4 pb-1 border-t border-slate-100">
@@ -175,6 +244,9 @@
                 </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('requests.my-requests')" class="font-bold">
                     আমার রিকোয়েস্ট
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('chronic.index')" class="font-bold">
+                    আমার দীর্ঘমেয়াদী রোগী
                 </x-responsive-nav-link>
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf

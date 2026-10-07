@@ -1,9 +1,24 @@
-@extends('layouts.app')
+@php
+    $layout = 'layouts.app';
+    if(auth()->check()){
+        $u = auth()->user();
+        if($u->isAdmin()) {
+            $layout = 'layouts.admin-dashboard';
+        } elseif($u->isOrgAdmin()) {
+            $layout = 'layouts.org-dashboard';
+        } elseif($u->isDonor()) {
+            $layout = 'layouts.donor-dashboard';
+        } else {
+            $layout = 'layouts.user-dashboard';
+        }
+    }
+@endphp
+@extends($layout)
 
 @section('title', 'প্রোফাইল সেটিংস — রক্তদূত')
 
 @section('content')
-<div class="bg-[#f8fafc] min-h-screen py-10 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+<div class="bg-[#f8fafc] min-h-screen py-10 px-4 sm:px-6 lg:px-8 relative overflow-hidden" data-panel-id="profile">
     <!-- Abstract Background Decorators -->
     <div class="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-red-50/80 to-transparent pointer-events-none"></div>
     <div class="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] rounded-full bg-red-100/30 blur-[120px] pointer-events-none"></div>
@@ -12,7 +27,7 @@
     <div class="max-w-4xl mx-auto space-y-10 relative z-10">
 
         {{-- ১. পেজ হেডার --}}
-        <div class="flex flex-col sm:flex-row items-center sm:items-start gap-5 text-center sm:text-left mb-6">
+        <div class="flex flex-col sm:flex-row items-center sm:items-start gap-5 text-center sm:text-left mb-6 scroll-reveal hide-in-dashboard" data-scroll-reveal>
             <div class="w-16 h-16 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex items-center justify-center shrink-0 relative">
                 <div class="absolute inset-0 bg-red-500/10 rounded-2xl rotate-3 scale-105 -z-10"></div>
                 <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -29,89 +44,11 @@
             $isDonor = $user->is_donor ?? false;
         @endphp
 
-        {{-- Recipient Upgrade Banner --}}
-        @if(!$isDonor)
-        <div x-data="{ upgradeModalOpen: false }" class="bg-gradient-to-r from-red-50 to-red-100 p-6 rounded-3xl border border-red-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-6 mb-6">
-            <div class="flex items-center gap-4">
-                <div class="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white text-red-600 shadow-sm">
-                    <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
-                    </svg>
-                </div>
-                <div>
-                    <h3 class="text-xl font-extrabold text-slate-900">রক্তদাতা হিসেবে যুক্ত হতে চান?</h3>
-                    <p class="text-sm font-semibold text-slate-600 mt-1">আপনার প্রোফাইল আপগ্রেড করুন এবং মানুষের জীবন বাঁচাতে অবদান রাখুন।</p>
-                </div>
-            </div>
-            <button @click="upgradeModalOpen = true" class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-extrabold shadow-md transition-all text-center whitespace-nowrap">
-                রক্তদাতা হোন (Become a Donor)
-            </button>
 
-            {{-- Upgrade Modal --}}
-            <div x-show="upgradeModalOpen" style="display: none;" class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto" x-transition.opacity>
-                <div @click.away="upgradeModalOpen = false" class="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-200 text-left my-8">
-                    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl z-10">
-                        <h3 class="text-xl font-black text-slate-900">রক্তদাতা হিসেবে প্রোফাইল আপগ্রেড করুন</h3>
-                        <button @click="upgradeModalOpen = false" class="text-slate-400 hover:text-red-600 transition">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                        </button>
-                    </div>
-                    <div class="p-6">
-                        <form method="POST" action="{{ route('profile.upgrade_to_donor') }}" class="space-y-6">
-                            @csrf
-                            @if(empty($user->phone))
-                            <div>
-                                <label class="block text-sm font-bold text-slate-700 mb-1.5">ফোন নম্বর <span class="text-red-500">*</span></label>
-                                <input type="tel" name="phone" value="{{ old('phone') }}" class="w-full rounded-xl border-slate-300 text-sm font-semibold focus:border-red-500 focus:ring-red-500" required placeholder="01XXX-XXXXXX">
-                                @error('phone') <p class="text-xs font-bold text-red-600 mt-1">{{ $message }}</p> @enderror
-                            </div>
-                            @endif
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                <div>
-                                    <label class="block text-sm font-bold text-slate-700 mb-1.5">রক্তের গ্রুপ <span class="text-red-500">*</span></label>
-                                    <select name="blood_group" class="w-full rounded-xl border-slate-300 text-sm font-semibold focus:border-red-500 focus:ring-red-500" required>
-                                        <option value="">নির্বাচন করুন</option>
-                                        @foreach(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as $bg)
-                                            <option value="{{ $bg }}" @selected(old('blood_group', $user->blood_group?->value ?? $user->blood_group) == $bg)>{{ $bg }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-bold text-slate-700 mb-1.5">লিঙ্গ <span class="text-red-500">*</span></label>
-                                    <select name="gender" class="w-full rounded-xl border-slate-300 text-sm font-semibold focus:border-red-500 focus:ring-red-500" required>
-                                        <option value="">নির্বাচন করুন</option>
-                                        <option value="male" @selected(old('gender', $user->gender) == 'male')>পুরুষ</option>
-                                        <option value="female" @selected(old('gender', $user->gender) == 'female')>মহিলা</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold text-slate-700 mb-1.5">লোকেশন (কোথায় রক্ত দিতে ইচ্ছুক) <span class="text-red-500">*</span></label>
-                                <x-location-selector :selected-division="old('division_id', $user->division_id)" :selected-district="old('district_id', $user->district_id)" :selected-upazila="old('upazila_id', $user->upazila_id)" />
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                <div>
-                                    <label class="block text-sm font-bold text-slate-700 mb-1.5">ওজন (কেজি)</label>
-                                    <input type="number" name="weight" value="{{ old('weight', $user->weight) }}" class="w-full rounded-xl border-slate-300 text-sm font-semibold focus:border-red-500 focus:ring-red-500" placeholder="যেমন: 65">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-bold text-slate-700 mb-1.5">শেষ রক্তদানের তারিখ</label>
-                                    <input type="date" name="last_donation_date" value="{{ old('last_donation_date', $user->last_donated_at?->format('Y-m-d')) }}" max="{{ date('Y-m-d') }}" class="w-full rounded-xl border-slate-300 text-sm font-semibold focus:border-red-500 focus:ring-red-500 text-slate-700">
-                                </div>
-                            </div>
-                            <div class="pt-4 flex justify-end border-t border-slate-100">
-                                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-black shadow-md shadow-emerald-200 transition-all">আপগ্রেড নিশ্চিত করুন</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-        @endif
 
         {{-- Flash Messages (Glass Effect) --}}
         @if(session('status') === 'profile-updated' || session('success_msg'))
-            <div class="p-4 bg-emerald-50/80 backdrop-blur-md border border-emerald-200 text-emerald-800 font-bold rounded-2xl flex items-center gap-3 shadow-sm transform animate-[fadeIn_0.5s_ease-out]">
+            <div class="p-4 bg-emerald-50/80 backdrop-blur-md border border-emerald-200 text-emerald-800 font-bold rounded-2xl flex items-center gap-3 shadow-sm transform animate-[fadeIn_0.5s_ease-out] scroll-reveal" data-scroll-reveal>
                 <div class="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
                     <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                 </div>
@@ -119,7 +56,7 @@
             </div>
         @endif
         @if(session('status') === 'password-updated')
-            <div class="p-4 bg-emerald-50/80 backdrop-blur-md border border-emerald-200 text-emerald-800 font-bold rounded-2xl flex items-center gap-3 shadow-sm transform animate-[fadeIn_0.5s_ease-out]">
+            <div class="p-4 bg-emerald-50/80 backdrop-blur-md border border-emerald-200 text-emerald-800 font-bold rounded-2xl flex items-center gap-3 shadow-sm transform animate-[fadeIn_0.5s_ease-out] scroll-reveal" data-scroll-reveal>
                 <div class="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
                     <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
                 </div>
@@ -127,20 +64,20 @@
             </div>
         @endif
         @if(session('bonus_msg'))
-            <div class="p-4 bg-amber-50/80 backdrop-blur-md border border-amber-200 text-amber-900 font-bold rounded-2xl flex items-center gap-3 shadow-sm transform animate-[fadeIn_0.5s_ease-out]">
+            <div class="p-4 bg-amber-50/80 backdrop-blur-md border border-amber-200 text-amber-900 font-bold rounded-2xl flex items-center gap-3 shadow-sm transform animate-[fadeIn_0.5s_ease-out] scroll-reveal" data-scroll-reveal>
                 <div class="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center text-xl shrink-0">🏆</div>
                 {{ session('bonus_msg') }}
             </div>
         @endif
         @if(session('status') === 'emergency-updated' || session('emergency_msg'))
-            <div class="p-4 bg-blue-50/80 backdrop-blur-md border border-blue-200 text-blue-800 font-bold rounded-2xl flex items-center gap-3 shadow-sm transform animate-[fadeIn_0.5s_ease-out]">
+            <div class="p-4 bg-blue-50/80 backdrop-blur-md border border-blue-200 text-blue-800 font-bold rounded-2xl flex items-center gap-3 shadow-sm transform animate-[fadeIn_0.5s_ease-out] scroll-reveal" data-scroll-reveal>
                 <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-xl shrink-0">⚡</div>
                 {{ session('emergency_msg') ?? 'স্ট্যাটাস আপডেট হয়েছে!' }}
             </div>
         @endif
 
         @if($isDonor && $completionPercent < 100)
-            <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border border-slate-700/50 shadow-lg mb-10 p-5 sm:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border border-slate-700/50 shadow-lg mb-10 p-5 sm:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 scroll-reveal" data-scroll-reveal>
                 <div class="flex-1 w-full">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                         <div class="flex items-center gap-2">
@@ -168,7 +105,7 @@
             </div>
         @elseif($isDonor)
             {{-- ১০০% সম্পূর্ণ হওয়ার পর সাকসেস ব্যাজ (Sleek Compact UI) --}}
-            <div class="flex justify-center mb-10">
+            <div class="flex justify-center mb-10 scroll-reveal" data-scroll-reveal>
                 <div class="inline-flex items-center gap-3 px-6 py-3 bg-white/80 backdrop-blur-xl border border-emerald-200/60 rounded-2xl shadow-[0_8px_30px_rgb(16,185,129,0.08)] transform transition-all hover:scale-[1.02]">
                     <div class="w-8 h-8 bg-emerald-500 text-white rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
@@ -181,8 +118,9 @@
         @if($isDonor)
         {{-- ৩. অ্যাভেইলেবল স্ট্যাটাস কার্ড (Premium Alpine.js Toggle) --}}
         <div x-data="emergencyToggle({{ ($user->is_available && $user->is_eligible_to_donate) ? 'true' : 'false' }}, {{ $user->is_eligible_to_donate ? 'false' : 'true' }})" 
-             :class="isAvailable ? 'bg-gradient-to-r from-emerald-50 to-white border-emerald-200 shadow-[0_8px_30px_rgb(16,185,129,0.12)]' : 'bg-gradient-to-r from-slate-50 to-white border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)]'"
-             class="rounded-3xl border p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 transition-all duration-500 relative overflow-hidden group mb-10">
+              :class="isAvailable ? 'bg-gradient-to-r from-emerald-50 to-white border-emerald-200 shadow-[0_8px_30px_rgb(16,185,129,0.12)]' : 'bg-gradient-to-r from-slate-50 to-white border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)]'"
+             class="rounded-3xl border p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 transition-all duration-500 relative overflow-hidden group mb-10 scroll-reveal"
+             data-scroll-reveal>
             
             <div x-show="isLoading" style="display: none;" class="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex items-center justify-center">
                 <div class="flex flex-col items-center gap-3">
@@ -221,7 +159,7 @@
         @endif
 
         {{-- ৪. ব্যক্তিগত তথ্য কার্ড (Glass Card) --}}
-        <div class="bg-white/90 backdrop-blur-xl rounded-3xl border border-slate-200 hover:border-slate-300 p-6 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300">
+        <div class="bg-white/90 backdrop-blur-xl rounded-3xl border border-slate-200 hover:border-slate-300 p-6 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 scroll-reveal" data-scroll-reveal>
             <div class="flex items-center gap-3 mb-8 border-b border-slate-100 pb-5">
                 <div class="w-10 h-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
@@ -237,9 +175,9 @@
                 <div class="flex flex-col sm:flex-row items-center gap-6 p-6 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 hover:bg-red-50/30 hover:border-red-200 transition-all group">
                     <div class="w-24 h-24 rounded-full border-4 border-white overflow-hidden shrink-0 flex items-center justify-center shadow-lg group-hover:shadow-red-500/20 transition-all">
                         @if($user->profile_image)
-                            <img src="{{ asset('storage/' . $user->profile_image) }}" alt="Avatar" class="w-full h-full object-cover">
+                            <img id="profileImagePreview" src="{{ route('profile.avatar', $user) }}" alt="Avatar" class="w-full h-full object-cover">
                         @else
-                            <div class="w-full h-full bg-slate-100 flex items-center justify-center">
+                            <div id="profileImagePlaceholder" class="w-full h-full bg-slate-100 flex items-center justify-center">
                                 <svg class="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                             </div>
                         @endif
@@ -250,8 +188,8 @@
                         
                         <label class="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 cursor-pointer shadow-sm hover:shadow hover:border-red-300 hover:text-red-600 transition-all">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                            ছবি নির্বাচন করুন
-                            <input type="file" name="profile_image" accept="image/*" class="hidden">
+                            <span id="profileImageFileName">ছবি নির্বাচন করুন</span>
+                            <input id="profileImageInput" type="file" name="profile_image" accept=".jpg,.jpeg,.png,.webp,image/*" class="hidden">
                         </label>
                         @error('profile_image') <span class="text-red-500 text-xs font-bold mt-2 block">{{ $message }}</span> @enderror
                     </div>
@@ -408,7 +346,7 @@
         @endphp
         
         @if($nidStatus !== 'verified')
-        <div class="bg-white/90 backdrop-blur-xl rounded-3xl border border-slate-200 hover:border-slate-300 p-6 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 relative overflow-hidden">
+        <div class="bg-white/90 backdrop-blur-xl rounded-3xl border border-slate-200 hover:border-slate-300 p-6 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 relative overflow-hidden scroll-reveal" data-scroll-reveal>
             
             <div class="absolute right-0 top-0 m-6 sm:m-10">
                 @if($nidStatus === 'unverified' || empty($nidStatus))
@@ -450,13 +388,13 @@
                                 <div class="flex items-center justify-center gap-2 px-3 text-center">
                                     @if($user->nid_path)
                                         <svg class="w-5 h-5 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                        <span class="text-sm font-bold text-emerald-700 truncate" id="fileNameDisplay">ডকুমেন্ট আপলোড করা হয়েছে (পরিবর্তন করুন)</span>
+                                        <span class="text-sm font-bold text-emerald-700 truncate" id="nidFileNameDisplay">ডকুমেন্ট আপলোড করা হয়েছে (পরিবর্তন করুন)</span>
                                     @else
                                         <svg class="w-5 h-5 text-slate-400 group-hover:text-red-500 transition-colors shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-                                        <span class="text-sm font-bold text-slate-600 group-hover:text-red-600 transition-colors truncate" id="fileNameDisplay">ফাইল নির্বাচন করুন</span>
+                                        <span class="text-sm font-bold text-slate-600 group-hover:text-red-600 transition-colors truncate" id="nidFileNameDisplay">ফাইল নির্বাচন করুন</span>
                                     @endif
                                 </div>
-                                <input type="file" name="nid_document" accept=".jpg,.jpeg,.png,.pdf" class="hidden" onchange="document.getElementById('fileNameDisplay').textContent = this.files[0]?.name || 'ফাইল নির্বাচন করুন'">
+                                <input type="file" name="nid_document" accept=".jpg,.jpeg,.png,.pdf" class="hidden" onchange="document.getElementById('nidFileNameDisplay').textContent = this.files[0]?.name || 'ফাইল নির্বাচন করুন'">
                             </label>
                         </div>
                         @error('nid_document') <span class="text-red-500 text-xs font-bold mt-1 block">{{ $message }}</span> @enderror
@@ -474,7 +412,7 @@
         @endif
         
         {{-- ৬. 🤖 টেলিগ্রাম অ্যালার্ট কানেক্ট কার্ড --}}
-        <div class="bg-white/90 backdrop-blur-xl rounded-3xl border {{ $user->telegram_chat_id ? 'border-blue-200' : 'border-slate-200' }} hover:border-blue-300 p-6 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 relative overflow-hidden">
+        <div class="bg-white/90 backdrop-blur-xl rounded-3xl border {{ $user->telegram_chat_id ? 'border-blue-200' : 'border-slate-200' }} hover:border-blue-300 p-6 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 relative overflow-hidden scroll-reveal" data-scroll-reveal>
             <div class="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-[80px] pointer-events-none"></div>
 
             <div class="flex items-center gap-3 mb-2 relative z-10">
@@ -549,7 +487,8 @@
         </div>
 
         {{-- 🛡️ প্রাইভেসি ও সুরক্ষা কার্ড (ডোনারদের জন্য) --}}
-        <div class="bg-white/90 backdrop-blur-xl rounded-3xl border border-purple-100 hover:border-purple-200 p-6 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 relative overflow-hidden"
+        <div class="bg-white/90 backdrop-blur-xl rounded-3xl border border-purple-100 hover:border-purple-200 p-6 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 relative overflow-hidden scroll-reveal"
+             data-scroll-reveal
              x-data="privacyToggle({{ $user->hide_phone ? 'true' : 'false' }})">
             <div class="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full blur-[80px] pointer-events-none"></div>
 
@@ -610,7 +549,7 @@
         @endif
 
         {{-- ৭. পাসওয়ার্ড পরিবর্তন কার্ড --}}
-        <div class="bg-white/90 backdrop-blur-xl rounded-3xl border border-slate-200 hover:border-slate-300 p-6 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300">
+        <div class="bg-white/90 backdrop-blur-xl rounded-3xl border border-slate-200 hover:border-slate-300 p-6 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 scroll-reveal" data-scroll-reveal>
             <div class="flex items-center gap-3 mb-8 border-b border-slate-100 pb-5">
                 <div class="w-10 h-10 bg-slate-100 text-slate-700 rounded-xl flex items-center justify-center">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
@@ -647,7 +586,7 @@
         </div>
 
         {{-- ৭. অ্যাকাউন্ট ডিলিট (Danger Zone) --}}
-        <div class="bg-gradient-to-br from-white to-red-50/30 rounded-3xl border border-red-100 hover:border-red-200 p-6 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 relative overflow-hidden">
+        <div class="bg-gradient-to-br from-white to-red-50/30 rounded-3xl border border-red-100 hover:border-red-200 p-6 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 relative overflow-hidden scroll-reveal" data-scroll-reveal>
             <div class="absolute top-0 right-0 w-64 h-64 bg-red-500/5 rounded-full blur-[80px] pointer-events-none"></div>
             
             <div class="flex items-center gap-3 mb-3 relative z-10">
@@ -657,7 +596,7 @@
                 <h2 class="text-2xl font-bold text-red-600">ডেঞ্জার জোন: অ্যাকাউন্ট মুছুন</h2>
             </div>
             
-            <p class="text-sm font-semibold text-red-800/70 mb-8 max-w-2xl relative z-10">স্থায়ীভাবে আপনার অ্যাকাউন্ট মুছে ফেলতে চান? এটি করার পর আপনার সমস্ত ডেটা, রেকর্ড এবং ব্যাজ চিরতরে ডিলিট হয়ে যাবে এবং আর ফিরে পাওয়া সম্ভব নয়।</p>
+            <p class="text-sm font-semibold text-red-800/70 mb-8 max-w-2xl relative z-10">স্থায়ীভাবে আপনার অ্যাকাউন্ট ডিলিট করতে চান? এটি করার পর আপনার সমস্ত ডেটা, রেকর্ড এবং ব্যাজ চিরতরে ডিলিট হয়ে যাবে এবং আর ফিরে পাওয়া সম্ভব নয়।</p>
             
             <form method="post" action="{{ route('profile.destroy') }}" class="max-w-xl relative z-10">
                 @csrf
@@ -667,9 +606,9 @@
                     <input name="password" type="password" placeholder="••••••••" required class="w-full rounded-xl border border-red-200 bg-white focus:bg-white focus:border-red-500 focus:ring-4 focus:ring-red-500/20 px-4 py-3 text-slate-800 font-medium transition-all outline-none tracking-widest">
                     @error('password', 'userDeletion') <span class="text-red-500 text-xs font-bold mt-1 block">{{ $message }}</span> @enderror
                 </div>
-                <button type="submit" onclick="return confirm('আপনি কি নিশ্চিত যে আপনার অ্যাকাউন্ট মুছে ফেলতে চান? এটি আর ফিরিয়ে আনা সম্ভব নয়।')" class="bg-red-600 hover:bg-red-700 text-white font-bold text-base px-8 py-3.5 rounded-xl shadow-[0_8px_20px_-6px_rgba(220,38,38,0.5)] transition-all hover:-translate-y-1 active:scale-95 inline-flex items-center gap-2">
+                <button type="submit" onclick="return confirm('আপনি কি নিশ্চিত যে আপনার অ্যাকাউন্ট ডিলিট করতে চান? এটি আর ফিরিয়ে আনা সম্ভব নয়।')" class="bg-red-600 hover:bg-red-700 text-white font-bold text-base px-8 py-3.5 rounded-xl shadow-[0_8px_20px_-6px_rgba(220,38,38,0.5)] transition-all hover:-translate-y-1 active:scale-95 inline-flex items-center gap-2">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    স্থায়ীভাবে অ্যাকাউন্ট মুছে ফেলুন
+                    স্থায়ীভাবে ডিলিট করুন
                 </button>
             </form>
         </div>
@@ -686,7 +625,49 @@
 </style>
 
 <script>
-    document.addEventListener('alpine:init', () => {
+    document.addEventListener('DOMContentLoaded', () => {
+        const profileImageInput = document.getElementById('profileImageInput');
+        const profileImageFileName = document.getElementById('profileImageFileName');
+
+        if (!profileImageInput || !profileImageFileName) {
+            return;
+        }
+
+        profileImageInput.addEventListener('change', (event) => {
+            const file = event.target.files?.[0];
+            profileImageFileName.textContent = file ? file.name : 'ছবি নির্বাচন করুন';
+
+            if (!file) {
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const currentImage = document.getElementById('profileImagePreview');
+                if (currentImage) {
+                    currentImage.src = String(e.target?.result ?? '');
+                    return;
+                }
+
+                const placeholder = document.getElementById('profileImagePlaceholder');
+                if (!placeholder) {
+                    return;
+                }
+
+                const img = document.createElement('img');
+                img.id = 'profileImagePreview';
+                img.className = 'w-full h-full object-cover';
+                img.alt = 'Avatar';
+                img.src = String(e.target?.result ?? '');
+                placeholder.replaceWith(img);
+            };
+            reader.readAsDataURL(file);
+        });
+    });
+
+    const initProfileAlpine = () => {
+        if (typeof Alpine === 'undefined') return;
+        
         Alpine.data('emergencyToggle', (initialStatus, lockedStatus) => ({
             isAvailable: initialStatus,
             isLocked: lockedStatus,
@@ -795,6 +776,12 @@
                 setTimeout(() => { this.toast = false; }, 3500);
             }
         }));
-    });
+    };
+
+    if (window.Alpine) {
+        initProfileAlpine();
+    } else {
+        document.addEventListener('alpine:init', initProfileAlpine);
+    }
 </script>
 @endsection
