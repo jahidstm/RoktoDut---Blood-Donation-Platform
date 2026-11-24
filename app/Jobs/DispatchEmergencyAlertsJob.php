@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\BloodRequest;
 use App\Models\DonorResponseLog;
+use App\Services\Matching\ResponseRateService;
 use App\Models\User;
 use App\Notifications\BloodRequestMatchedNotification;
 use App\Services\TelegramService;
@@ -158,7 +159,7 @@ class DispatchEmergencyAlertsJob implements ShouldQueue
     private function persistDispatchLogs(BloodRequest $bloodRequest, array $batch): void
     {
         $now = now();
-        $historicalRates = $this->getHistoricalRates(
+        $historicalRates = app(ResponseRateService::class)->forDonors(
             collect($batch)->pluck('donor_id')->map(fn($id) => (int) $id)->all()
         );
 
@@ -177,7 +178,7 @@ class DispatchEmergencyAlertsJob implements ShouldQueue
                     'notified_at' => $now,
                     'status' => 'pending',
                     'response_time_minutes' => null,
-                    'distance_km' => round((float) ($row['distance_km'] ?? 0), 2),
+                    'distance_km' => isset($row['distance_km']) ? round((float) $row['distance_km'], 2) : null,
                     'days_since_last_donation' => (int) ($row['days_since_last_donation'] ?? 0),
                     'temporal_hour' => (int) ($row['temporal_hour'] ?? $now->hour),
                     'is_weekend' => (bool) ($row['is_weekend'] ?? $now->isWeekend()),
@@ -187,29 +188,4 @@ class DispatchEmergencyAlertsJob implements ShouldQueue
         }
     }
 
-    /**
-     * @param array<int> $donorIds
-     * @return array<int, float>
-     */
-    private function getHistoricalRates(array $donorIds): array
-    {
-        if ($donorIds === []) {
-            return [];
-        }
-
-        $stats = DonorResponseLog::query()
-            ->whereIn('donor_id', $donorIds)
-            ->selectRaw('donor_id, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS accepted_count, COUNT(*) AS total_count', ['accepted'])
-            ->groupBy('donor_id')
-            ->get();
-
-        $rates = [];
-        foreach ($stats as $row) {
-            $total = (int) $row->total_count;
-            $accepted = (int) $row->accepted_count;
-            $rates[(int) $row->donor_id] = $total > 0 ? round($accepted / $total, 4) : 0.0;
-        }
-
-        return $rates;
-    }
 }

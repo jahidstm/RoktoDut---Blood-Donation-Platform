@@ -2,23 +2,36 @@
 
 namespace App\Services;
 
+use App\Enums\UrgencyLevel;
 use App\Models\BloodRequest;
-use App\Models\DonorAvailability;
-use App\Models\DonorResponseLog;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
+use App\Services\Matching\DonorCandidate;
+use App\Services\Matching\DonorCandidateFinder;
+use App\Services\Matching\ResponseRateService;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 
+/**
+ * Ranking used by CheckAndCascadeRequestJob (when its cache is empty) and the chronic
+ * subscription dispatcher. Hard rules come from DonorCandidateFinder; the ML service
+ * only orders donors who already passed them.
+ */
 class DonorMatchingService
 {
     private const RANKING_PATH = '/api/v1/rank-donors';
     private const MAX_CANDIDATES = 50;
     private const DEFAULT_BATCH_SIZE = 5;
     private const MAX_DISTANCE_KM = 20.0;
+    private const FATIGUE_EXCLUDE_FROM = 80;
+
+    public function __construct(
+        private readonly DonorCandidateFinder $finder,
+        private readonly ResponseRateService $responseRates,
+        private readonly EligibilityService $eligibility,
+    ) {}
 
     /**
      * Backward-compatible method used in existing flows.
@@ -34,99 +47,52 @@ class DonorMatchingService
             return new EloquentCollection();
         }
 
-        $donorsById = User::query()
-            ->whereIn('id', $ids)
-            ->get()
-            ->keyBy('id');
+        $donorsById = User::query()->whereIn('id', $ids)->get()->keyBy('id');
 
         return new EloquentCollection(
-            collect($ids)
-                ->map(fn (int $id) => $donorsById->get($id))
-                ->filter()
-                ->values()
-                ->all()
+            collect($ids)->map(fn (int $id) => $donorsById->get($id))->filter()->values()->all()
         );
     }
 
     /**
-     * Generate AI candidate list:
-     * - active/available donors
-     * - matching blood group
-     * - within 20km when request coordinates are available
-     * - not on active cooldown
+     * Eligible, available, compatible donors with the features the ML model expects.
+     * Identical blood group first, then nearest.
      */
     public function generateCandidateList(BloodRequest $request, int $limit = self::MAX_CANDIDATES): Collection
     {
         $limit = max(1, min($limit, self::MAX_CANDIDATES));
         $now = now();
-        $temporalHour = (int) $now->hour;
-        $isWeekend = $now->isWeekend();
 
-        $query = $this->buildBaseQuery($request)
-            ->select([
-                'id',
-                'blood_group',
-                'district_id',
-                'latitude',
-                'longitude',
-                'last_donated_at',
-                'cooldown_until',
-                'is_available',
-                'is_donor',
-            ]);
+        $candidates = $this->finder->find(
+            $request,
+            radiusKm: self::MAX_DISTANCE_KM,
+            limit: $limit,
+            excludeDonorIds: $this->fatiguedDonorIds($request),
+        );
 
-        if ($request->latitude !== null && $request->longitude !== null) {
-            $lat = (float) $request->latitude;
-            $lng = (float) $request->longitude;
-
-            $haversine = '(6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude))))';
-
-            $query
-                ->whereNotNull('latitude')
-                ->whereNotNull('longitude')
-                ->selectRaw("{$haversine} AS distance_km", [$lat, $lng, $lat])
-                ->having('distance_km', '<=', self::MAX_DISTANCE_KM)
-                ->orderBy('distance_km');
-        } else {
-            $query
-                ->where('district_id', $request->district_id)
-                ->selectRaw('9999.00 AS distance_km')
-                ->orderBy('id');
-        }
-
-        $donors = $query->limit($limit)->get();
-
-        if ($donors->isEmpty()) {
+        if ($candidates->isEmpty()) {
             return collect();
         }
 
-        $historicalRates = $this->getHistoricalResponseRates($donors->pluck('id')->all());
+        $rates = $this->responseRates->forDonors($candidates->map(fn (DonorCandidate $c) => $c->user->id)->all());
 
-        return $donors->map(function (User $donor) use ($historicalRates, $now, $temporalHour, $isWeekend): array {
-            $lastDonatedAt = $donor->last_donated_at instanceof Carbon
-                ? $donor->last_donated_at
-                : ($donor->last_donated_at ? Carbon::parse((string) $donor->last_donated_at) : null);
-
-            $daysSinceLastDonation = $lastDonatedAt
-                ? max(0, $lastDonatedAt->diffInDays($now))
-                : 365;
-
-            $distanceKm = round((float) ($donor->distance_km ?? 9999.0), 2);
-
+        return $candidates->map(function (DonorCandidate $c) use ($rates, $now, $request): array {
             return [
-                'donor_id' => (int) $donor->id,
-                'distance_km' => $distanceKm,
-                'days_since_last_donation' => $daysSinceLastDonation,
-                'temporal_hour' => $temporalHour,
-                'is_weekend' => $isWeekend,
-                'historical_response_rate' => round((float) ($historicalRates[$donor->id] ?? 0.0), 4),
+                'donor_id' => (int) $c->user->id,
+                'distance_km' => $c->distanceKm,
+                'days_since_last_donation' => $this->eligibility->daysSinceLastDonation($c->user, $request->component_type, $now),
+                'temporal_hour' => (int) $now->hour,
+                'is_weekend' => $now->isWeekend(),
+                'historical_response_rate' => $rates[$c->user->id],
+                'is_identical_group' => $c->isIdenticalGroup,
             ];
         })->values();
     }
 
     /**
-     * Returns ranked candidates with rank/probability for dispatch workflow.
-     * Fallback path (service down/timeout): closest donors first.
+     * Ranked candidates for dispatch. Order:
+     *  1. identical blood group before compatible-but-different (a hard preference, not learned);
+     *  2. within a group tier, the ML score when it can be used, else distance / response rate.
      */
     public function rankDonors(BloodRequest $request, int $limit = self::DEFAULT_BATCH_SIZE): Collection
     {
@@ -137,181 +103,102 @@ class DonorMatchingService
             return collect();
         }
 
+        // Without request coordinates distance is unknown. The model was trained on
+        // 0.2–35 km, so sending a placeholder like 9999 would be out-of-distribution.
+        $hasDistance = $candidates->every(fn (array $c) => $c['distance_km'] !== null);
+
+        $ranked = $hasDistance ? $this->rankWithModel($request, $candidates) : null;
+
+        if ($ranked === null) {
+            $ranked = $candidates
+                ->sortBy([
+                    fn ($a, $b) => $b['is_identical_group'] <=> $a['is_identical_group'],
+                    fn ($a, $b) => ($a['distance_km'] ?? INF) <=> ($b['distance_km'] ?? INF),
+                    fn ($a, $b) => $b['historical_response_rate'] <=> $a['historical_response_rate'],
+                ])
+                ->map(fn (array $c) => $c + ['probability_score' => 0.0]);
+        }
+
+        return $ranked
+            ->take($limit)
+            ->values()
+            ->map(fn (array $row, int $i) => array_merge($row, ['rank' => $i + 1]));
+    }
+
+    /**
+     * @return Collection<int, array>|null null when the ML service is unavailable or answers badly
+     */
+    private function rankWithModel(BloodRequest $request, Collection $candidates): ?Collection
+    {
+        $modelFields = ['donor_id', 'distance_km', 'days_since_last_donation', 'temporal_hour', 'is_weekend', 'historical_response_rate'];
+
         try {
             $response = Http::timeout(2)
-                ->withHeaders([
-                    'X-API-Key' => config('services.roktodut_ml.api_key'),
-                ])
+                ->withHeaders(['X-API-Key' => config('services.roktodut_ml.api_key')])
                 ->post(rtrim((string) config('services.roktodut_ml.base_url'), '/') . self::RANKING_PATH, [
                     'request_details' => [
                         'request_id' => $request->id,
                         'blood_group' => (string) ($request->blood_group?->value ?? $request->blood_group),
-                        'urgency' => (string) $request->urgency,
+                        'urgency' => $this->urgencyValue($request),
                         'units_needed' => (int) ($request->units_needed ?? $request->bags_needed ?? 1),
                     ],
-                    'candidate_donors' => $candidates->values()->all(),
+                    'candidate_donors' => $candidates->map(fn (array $c) => array_intersect_key($c, array_flip($modelFields)))->values()->all(),
                 ]);
 
             $response->throw();
-            $rankedFromAi = collect($response->json());
 
-            if ($rankedFromAi->isEmpty()) {
+            $scores = collect($response->json())
+                ->filter(fn ($row) => is_array($row) && isset($row['donor_id']))
+                ->mapWithKeys(fn (array $row) => [(int) $row['donor_id'] => (float) ($row['probability_score'] ?? 0.0)]);
+
+            if ($scores->isEmpty()) {
                 throw new \RuntimeException('Empty ranking response from AI service.');
             }
 
-            $candidateById = $candidates->keyBy('donor_id');
-
-            return $rankedFromAi
-                ->filter(fn ($row) => isset($row['donor_id']) && $candidateById->has((int) $row['donor_id']))
-                ->map(function (array $row, int $index) use ($candidateById): array {
-                    $donorId = (int) $row['donor_id'];
-                    $base = $candidateById->get($donorId, []);
-
-                    return array_merge($base, [
-                        'probability_score' => isset($row['probability_score']) ? (float) $row['probability_score'] : 0.0,
-                        'rank' => isset($row['rank']) ? (int) $row['rank'] : ($index + 1),
-                    ]);
-                })
-                ->sortBy('rank')
-                ->values()
-                ->take($limit)
+            return $candidates
+                ->filter(fn (array $c) => $scores->has($c['donor_id']))
+                ->map(fn (array $c) => $c + ['probability_score' => $scores[$c['donor_id']]])
+                ->sortBy([
+                    fn ($a, $b) => $b['is_identical_group'] <=> $a['is_identical_group'],
+                    fn ($a, $b) => $b['probability_score'] <=> $a['probability_score'],
+                ])
                 ->values();
         } catch (\Throwable $e) {
-            Log::warning('AI donor ranking failed; using distance fallback.', [
+            Log::warning('AI donor ranking failed; using rule-based order.', [
                 'blood_request_id' => $request->id,
                 'message' => $e->getMessage(),
             ]);
 
-            return $candidates
-                ->sortBy('distance_km')
-                ->values()
-                ->take($limit)
-                ->values()
-                ->map(fn (array $row, int $index) => array_merge($row, [
-                    'probability_score' => 0.0,
-                    'rank' => $index + 1,
-                ]));
+            return null;
         }
-    }
-
-    private function buildBaseQuery(BloodRequest $request): Builder
-    {
-        $bloodGroup = is_object($request->blood_group)
-            ? $request->blood_group->value
-            : (string) $request->blood_group;
-
-        $query = User::query()
-            ->where('is_donor', true)
-            ->where('blood_group', $bloodGroup)
-            ->when(
-                $request->requested_by !== null,
-                fn (Builder $q) => $q->where('id', '!=', $request->requested_by)
-            )
-            ->where('is_shadowbanned', false);
-
-        // 🧠 DFI Integration: Filter out burned-out donors unless it's a critical emergency
-        $urgency = $request->urgency instanceof \App\Enums\UrgencyLevel 
-            ? $request->urgency->value 
-            : (string) $request->urgency;
-            
-        if ($urgency !== 'EMERGENCY') {
-            try {
-                // Fetch donors with fatigue score > 80 from Redis
-                $fatiguedIds = \Illuminate\Support\Facades\Redis::zrangebyscore('donor_fatigue', 80, 100);
-                if (!empty($fatiguedIds)) {
-                    $query->whereNotIn('id', $fatiguedIds);
-                }
-            } catch (\Exception $e) {
-                // Redis might be unavailable, fail gracefully
-                Log::warning('Redis unavailable for DFI fetching: ' . $e->getMessage());
-            }
-        }
-
-        // 🗓️ Calendar Availability Check (Bitmask)
-        // Emergency requests bypass this check (handled in the Job layer).
-        // - No active rules → fall back to is_available toggle (backward-compatible)
-        // - Has active rules → at least ONE must match today + current time
-        $now          = now()->setTimezone('Asia/Dhaka');
-        $todayBit     = DonorAvailability::bitForDay($now->dayOfWeek); // e.g. Friday = 32
-        $todayDate    = $now->toDateString();
-        $currentTime  = $now->format('H:i:s');
-
-        return $query
-            ->where(function (Builder $q) {
-                $q->whereNull('is_available')->orWhere('is_available', true);
-            })
-            ->where(function (Builder $q) {
-                $q->whereNull('cooldown_until')->orWhere('cooldown_until', '<=', now());
-            })
-            // Calendar check — donors with NO active rules pass through (backward-compat).
-            // Donors WITH active rules must match today via bitwise AND (O(1), indexed).
-            ->where(function (Builder $q) use ($todayBit, $todayDate, $currentTime) {
-                $q->whereDoesntHave(
-                    'availabilities',
-                    fn (Builder $r) => $r->where('is_active', true)
-                )
-                ->orWhereHas('availabilities', function (Builder $r) use ($todayBit, $todayDate, $currentTime) {
-                    $r->where('is_active', true)
-                      ->where(function (Builder $rq) use ($todayBit, $todayDate, $currentTime) {
-
-                          // ① Weekly — Bitwise AND: (weekdays_bitmask & todayBit) > 0
-                          $rq->where(function (Builder $sq) use ($todayBit, $currentTime) {
-                              $sq->where('type', 'weekly')
-                                 ->whereRaw('(weekdays_bitmask & ?) > 0', [$todayBit])
-                                 ->where(fn (Builder $tq) => $tq
-                                     ->whereNull('time_from')
-                                     ->orWhereRaw('? BETWEEN time_from AND time_to', [$currentTime]));
-                          })
-
-                          // ② Specific date
-                          ->orWhere(function (Builder $sq) use ($todayDate, $currentTime) {
-                              $sq->where('type', 'specific_date')
-                                 ->where('specific_date', $todayDate)
-                                 ->where(fn (Builder $tq) => $tq
-                                     ->whereNull('time_from')
-                                     ->orWhereRaw('? BETWEEN time_from AND time_to', [$currentTime]));
-                          })
-
-                          // ③ Date range
-                          ->orWhere(function (Builder $sq) use ($todayDate, $currentTime) {
-                              $sq->where('type', 'date_range')
-                                 ->where('date_from', '<=', $todayDate)
-                                 ->where('date_to', '>=', $todayDate)
-                                 ->where(fn (Builder $tq) => $tq
-                                     ->whereNull('time_from')
-                                     ->orWhereRaw('? BETWEEN time_from AND time_to', [$currentTime]));
-                          });
-                      });
-                });
-            })
-            // Cooldown per component and gender: config/eligibility.php (single source of truth)
-            ->tap(fn (Builder $q) => app(EligibilityService::class)->scopeEligible($q, $request->component_type));
     }
 
     /**
-     * @param array<int> $donorIds
-     * @return array<int, float>
+     * Donors with a fatigue score above the threshold are skipped, except for emergencies.
+     *
+     * @return array<int>
      */
-    private function getHistoricalResponseRates(array $donorIds): array
+    private function fatiguedDonorIds(BloodRequest $request): array
     {
-        if ($donorIds === []) {
+        // Stored values are lowercase ('emergency'). The old code compared against
+        // 'EMERGENCY', so the emergency exemption never applied.
+        if ($this->urgencyValue($request) === UrgencyLevel::EMERGENCY->value) {
             return [];
         }
 
-        $stats = DonorResponseLog::query()
-            ->whereIn('donor_id', $donorIds)
-            ->selectRaw('donor_id, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS accepted_count, COUNT(*) AS total_count', ['accepted'])
-            ->groupBy('donor_id')
-            ->get();
+        try {
+            return array_map('intval', Redis::zrangebyscore('donor_fatigue', self::FATIGUE_EXCLUDE_FROM, 100) ?: []);
+        } catch (\Throwable $e) {
+            Log::warning('Redis unavailable for DFI fetching: ' . $e->getMessage());
 
-        $rates = [];
-        foreach ($stats as $row) {
-            $total = (int) $row->total_count;
-            $accepted = (int) $row->accepted_count;
-            $rates[(int) $row->donor_id] = $total > 0 ? round($accepted / $total, 4) : 0.0;
+            return [];
         }
+    }
 
-        return $rates;
+    private function urgencyValue(BloodRequest $request): string
+    {
+        $urgency = $request->urgency instanceof UrgencyLevel ? $request->urgency->value : (string) $request->urgency;
+
+        return strtolower($urgency);
     }
 }
-

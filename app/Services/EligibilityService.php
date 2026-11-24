@@ -64,6 +64,21 @@ class EligibilityService
         };
     }
 
+    /** Days since a donor never donated, for the ML feature. Matches the training data range. */
+    public const NEVER_DONATED_DAYS = 365;
+
+    /**
+     * ML feature `days_since_last_donation`, identical in every dispatch path.
+     * (The DFI service counts "never donated" as 0, which is right for fatigue but
+     * the opposite of what the response model was trained on.)
+     */
+    public function daysSinceLastDonation(User $user, mixed $component = null, ?Carbon $now = null): int
+    {
+        $last = $this->lastDonationDate($user, $component);
+
+        return $last ? max(0, (int) $last->diffInDays($now ?? now())) : self::NEVER_DONATED_DAYS;
+    }
+
     public function nextEligibleDate(User $user, mixed $component = null): ?Carbon
     {
         $last = $this->lastDonationDate($user, $component);
