@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -19,7 +21,8 @@ from fastapi import Depends, FastAPI, Header, HTTPException, status
 from groq import Groq
 from pydantic import BaseModel, ConfigDict, Field
 
-DEFAULT_API_KEY = "ROKTODUT_AI_SECRET"
+logger = logging.getLogger("roktodut.ml")
+
 MODEL_PATH = Path(__file__).resolve().parent / "models" / "donor_ranker.joblib"
 DEFAULT_FEATURE_COLUMNS = [
     "distance_km",
@@ -28,7 +31,9 @@ DEFAULT_FEATURE_COLUMNS = [
     "is_weekend",
     "historical_response_rate",
 ]
-DEFAULT_GROQ_MODEL = "llama3-8b-8192"
+# Groq retires models regularly (llama3-8b-8192 was shut down on 2025-08-30), so the
+# model id is meant to be overridden with GROQ_MODEL instead of editing code.
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b"
 
 NER_SYSTEM_PROMPT = """You are a strict medical NER extractor for blood request triage.
 Your task: extract structured fields from Bengali/English free-text blood request messages.
@@ -90,7 +95,16 @@ class ParsedBloodRequest(BaseModel):
 
 
 def _resolve_expected_api_key() -> str:
-    return os.getenv("ROKTODUT_API_KEY", DEFAULT_API_KEY)
+    # ROKTODUT_ML_API_KEY is shared with Laravel (config/services.php). The legacy names
+    # are accepted so an existing .env keeps working. There is deliberately no default:
+    # this repository is public, so a built-in key would be public too.
+    for name in ("ROKTODUT_ML_API_KEY", "ROKTODUT_AI_SECRET", "ROKTODUT_API_KEY"):
+        value = os.getenv(name, "").strip()
+        if value:
+            return value
+    raise RuntimeError(
+        "ML API key is not configured. Set ROKTODUT_ML_API_KEY in the environment or the Laravel .env."
+    )
 
 
 def _load_model_artifact() -> tuple[Any, list[str]]:
@@ -138,11 +152,20 @@ app = FastAPI(
 
 def require_api_key(x_api_key: str = Header(..., alias="X-API-Key")) -> None:
     expected = app.state.api_key
-    if x_api_key != expected:
+    if not hmac.compare_digest(x_api_key.encode(), expected.encode()):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key",
         )
+
+
+@app.get("/health")
+async def health() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "model_loaded": app.state.model is not None,
+        "nlp_enabled": app.state.groq_client is not None,
+    }
 
 
 @app.post("/api/v1/rank-donors", response_model=list[RankedDonor])
@@ -218,8 +241,10 @@ async def parse_request(
     try:
         return await asyncio.to_thread(_call_groq_parse, client, model_name, payload.text)
     except Exception as exc:
+        # Log the real cause server-side; do not leak provider/internal details to callers.
+        logger.exception("NLP parsing failed")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"NLP parsing failed: {exc}",
+            detail="NLP parsing failed.",
         ) from exc
 
