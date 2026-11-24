@@ -104,33 +104,11 @@ class TelegramPullUpdatesCommand extends Command
 
     private function handleNlpIntake(int|string $chatId, string $messageText, TelegramService $telegramService): void
     {
-        $mlBaseUrl = rtrim((string) config('services.roktodut_ml.base_url'), '/');
-        $mlApiKey = (string) config('services.roktodut_ml.api_key');
-        $internalSecret = (string) config('services.roktodut_ml.internal_secret');
-        $internalUrl = url('/api/internal/requests/nlp');
+        $linkedUser = User::query()->where('telegram_chat_id', (string) $chatId)->first();
 
         try {
-            $parseResponse = Http::timeout(15)
-                ->withHeaders(['X-API-Key' => $mlApiKey])
-                ->post("{$mlBaseUrl}/api/v1/parse-request", ['text' => $messageText]);
-
-            $parseResponse->throw();
-            $parsed = $parseResponse->json();
-
-            $linkedUser = User::query()->where('telegram_chat_id', (string) $chatId)->first();
-
-            $persistPayload = array_merge($parsed, [
-                'requested_by' => $linkedUser?->id,
-                'telegram_chat_id' => (string) $chatId,
-                'raw_text' => $messageText,
-            ]);
-
-            $saveResponse = Http::timeout(15)
-                ->withHeaders(['X-Internal-Secret' => $internalSecret])
-                ->post($internalUrl, $persistPayload);
-
-            $saveResponse->throw();
-            $telegramService->send($chatId, 'আপনার রিকোয়েস্টটি যাচাই করা হচ্ছে।');
+            $outcome = app(\App\Services\RequestText\NlpRequestIntake::class)->fromText($messageText, $linkedUser, (string) $chatId);
+            $telegramService->send($chatId, $outcome['reply']);
         } catch (\Throwable $e) {
             $this->error("NLP Error: " . $e->getMessage());
             $telegramService->send($chatId, 'দুঃখিত, আপনার অনুরোধটি এখন প্রক্রিয়া করা গেল না। একটু পর আবার চেষ্টা করুন।');

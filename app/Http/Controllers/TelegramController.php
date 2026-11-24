@@ -137,42 +137,13 @@ class TelegramController extends Controller
 
     private function handleNlpIntake(int|string $chatId, string $messageText): void
     {
-        $mlBaseUrl = rtrim((string) config('services.roktodut_ml.base_url'), '/');
-        $mlApiKey = (string) config('services.roktodut_ml.api_key');
-        $internalSecret = (string) config('services.roktodut_ml.internal_secret');
-        $internalUrl = url('/api/internal/requests/nlp');
+        // Parsing, place matching and the nlp_pending request are shared with
+        // TelegramPullUpdatesCommand and the internal API: see NlpRequestIntake.
+        $linkedUser = User::query()->where('telegram_chat_id', (string) $chatId)->first();
 
         try {
-            $parseResponse = Http::timeout(8)
-                ->withHeaders([
-                    'X-API-Key' => $mlApiKey,
-                ])
-                ->post("{$mlBaseUrl}/api/v1/parse-request", [
-                    'text' => $messageText,
-                ]);
-
-            $parseResponse->throw();
-            $parsed = $parseResponse->json();
-
-            $linkedUser = User::query()
-                ->where('telegram_chat_id', (string) $chatId)
-                ->first();
-
-            $persistPayload = array_merge($parsed, [
-                'requested_by' => $linkedUser?->id,
-                'telegram_chat_id' => (string) $chatId,
-                'raw_text' => $messageText,
-            ]);
-
-            $saveResponse = Http::timeout(8)
-                ->withHeaders([
-                    'X-Internal-Secret' => $internalSecret,
-                ])
-                ->post($internalUrl, $persistPayload);
-
-            $saveResponse->throw();
-
-            $this->telegram->send($chatId, 'আপনার রিকোয়েস্টটি যাচাই করা হচ্ছে।');
+            $outcome = app(\App\Services\RequestText\NlpRequestIntake::class)->fromText($messageText, $linkedUser, (string) $chatId);
+            $this->telegram->send($chatId, $outcome['reply']);
         } catch (\Throwable $e) {
             Log::warning('[TelegramWebhook] NLP intake failed', [
                 'chat_id' => (string) $chatId,
