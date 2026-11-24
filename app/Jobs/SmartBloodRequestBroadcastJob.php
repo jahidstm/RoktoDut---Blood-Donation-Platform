@@ -126,29 +126,8 @@ class SmartBloodRequestBroadcastJob implements ShouldQueue
                 $q->whereNull('cooldown_until')->orWhere('cooldown_until', '<=', now());
             });
 
-        $component = $request->component_type instanceof BloodComponentType
-            ? $request->component_type->value
-            : (string) ($request->component_type ?? BloodComponentType::WHOLE_BLOOD->value);
-
-        if ($component === BloodComponentType::PLASMA->value) {
-            $query->where(function (Builder $sq) {
-                $sq->whereNull('last_plasma_donated_at')
-                    ->orWhere('last_plasma_donated_at', '<=', now()->subDays(28));
-            });
-        } elseif ($component === BloodComponentType::PLATELETS->value) {
-            $query->where(function (Builder $sq) {
-                $sq->whereNull('last_platelet_donated_at')
-                    ->orWhere('last_platelet_donated_at', '<=', now()->subDays(14));
-            });
-        } else {
-            $query->where(function (Builder $sq) {
-                $sq->whereNull('last_whole_blood_donated_at')
-                    ->orWhere('last_whole_blood_donated_at', '<=', now()->subDays(120));
-            })->where(function (Builder $sq) {
-                $sq->whereNull('last_donated_at')
-                    ->orWhere('last_donated_at', '<=', now()->subDays(120));
-            });
-        }
+        // Component + gender cooldown: config/eligibility.php (single source of truth)
+        app(\App\Services\EligibilityService::class)->scopeEligible($query, $request->component_type);
 
         if ($request->latitude !== null && $request->longitude !== null) {
             $lat = (float) $request->latitude;

@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\BloodRequest;
 use App\Services\AuditLogger;
+use App\Services\DonorResponseLogger;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -13,8 +14,12 @@ class CloseExpiredRequests extends Command
 
     protected $description = 'Expire old pending/in_progress blood requests (needed_at older than 6 hours).';
 
-    public function handle(): int
+    public function handle(DonorResponseLogger $responseLogger): int
     {
+        // Notified donors who never answered become "ignored" (ML label). Runs every pass,
+        // independent of whether any request expires in this one.
+        $responseLogger->markStaleAsIgnored();
+
         $threshold = now()->subHours(6);
 
         $idsToExpire = BloodRequest::query()
@@ -33,10 +38,13 @@ class CloseExpiredRequests extends Command
 
         $expiredCount = 0;
 
-        DB::transaction(function () use (&$expiredCount, $idsToExpire, $threshold, $requestsToExpire): void {
+        DB::transaction(function () use (&$expiredCount, $idsToExpire, $threshold, $requestsToExpire, $responseLogger): void {
             $expiredCount = BloodRequest::query()
                 ->whereIn('id', $idsToExpire)
                 ->update(['status' => 'expired']);
+
+            // The request is closed, so anyone still "pending" will never answer.
+            $responseLogger->markIgnoredForRequests($idsToExpire);
 
             foreach ($requestsToExpire as $request) {
                 if ($request->requester) {

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BloodRequest;
 use App\Models\BloodRequestResponse;
 use App\Notifications\BloodResponseNotification;
+use App\Services\DonorResponseLogger;
 use App\Services\TelegramService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -87,6 +88,9 @@ class BloodRequestResponseController extends Controller
                 ]
             );
 
+            // 📊 ML label: donor said yes to a request they were notified about
+            app(DonorResponseLogger::class)->recordResponse($bloodRequest->id, $user->id, 'contacted');
+
             // ৪b. রোগীর Telegram-এ ডোনারের নম্বর সরাসরি পুশ করো
             $requester = $bloodRequest->requester;
             if ($requester) {
@@ -136,6 +140,9 @@ class BloodRequestResponseController extends Controller
                 'status' => $request->status,
             ]
         );
+
+        // 📊 ML label: pending = donor said yes, declined/withdrawn = donor said no
+        app(DonorResponseLogger::class)->recordResponse($bloodRequest->id, $user->id, $request->status);
 
         // ৬. ইন-অ্যাপ নোটিফিকেশন পাঠানো (শুধু pending হলে)
         $owner = $bloodRequest->requester;

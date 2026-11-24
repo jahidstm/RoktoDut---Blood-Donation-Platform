@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\BloodComponentType;
 use App\Models\BloodRequest;
 use App\Models\DonorAvailability;
 use App\Models\DonorResponseLog;
@@ -16,7 +15,7 @@ use Illuminate\Support\Facades\Log;
 
 class DonorMatchingService
 {
-    private const FASTAPI_RANKING_URL = 'http://127.0.0.1:8001/api/v1/rank-donors';
+    private const RANKING_PATH = '/api/v1/rank-donors';
     private const MAX_CANDIDATES = 50;
     private const DEFAULT_BATCH_SIZE = 5;
     private const MAX_DISTANCE_KM = 20.0;
@@ -143,7 +142,7 @@ class DonorMatchingService
                 ->withHeaders([
                     'X-API-Key' => config('services.roktodut_ml.api_key'),
                 ])
-                ->post(self::FASTAPI_RANKING_URL, [
+                ->post(rtrim((string) config('services.roktodut_ml.base_url'), '/') . self::RANKING_PATH, [
                     'request_details' => [
                         'request_id' => $request->id,
                         'blood_group' => (string) ($request->blood_group?->value ?? $request->blood_group),
@@ -285,31 +284,8 @@ class DonorMatchingService
                       });
                 });
             })
-            ->where(function (Builder $q) use ($request) {
-                $component = $request->component_type instanceof BloodComponentType
-                    ? $request->component_type->value
-                    : (string) ($request->component_type ?? BloodComponentType::WHOLE_BLOOD->value);
-
-                if ($component === BloodComponentType::PLASMA->value) {
-                    $q->where(function (Builder $sq) {
-                        $sq->whereNull('last_plasma_donated_at')
-                            ->orWhere('last_plasma_donated_at', '<=', now()->subDays(28));
-                    });
-                } elseif ($component === BloodComponentType::PLATELETS->value) {
-                    $q->where(function (Builder $sq) {
-                        $sq->whereNull('last_platelet_donated_at')
-                            ->orWhere('last_platelet_donated_at', '<=', now()->subDays(14));
-                    });
-                } else {
-                    $q->where(function (Builder $sq) {
-                        $sq->whereNull('last_whole_blood_donated_at')
-                            ->orWhere('last_whole_blood_donated_at', '<=', now()->subDays(120));
-                    })->where(function (Builder $sq) {
-                        $sq->whereNull('last_donated_at')
-                            ->orWhere('last_donated_at', '<=', now()->subDays(120));
-                    });
-                }
-            });
+            // Cooldown per component and gender: config/eligibility.php (single source of truth)
+            ->tap(fn (Builder $q) => app(EligibilityService::class)->scopeEligible($q, $request->component_type));
     }
 
     /**

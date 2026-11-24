@@ -313,39 +313,13 @@ class User extends Authenticatable // implements MustVerifyEmail — আপা�
 
     public function daysUntilNextDonation(mixed $componentType = null): int
     {
-        $value = $this->resolveComponentValue($componentType);
-
-        $lastDonatedAt = match ($value) {
-            BloodComponentType::PLASMA->value    => $this->last_plasma_donated_at,
-            BloodComponentType::PLATELETS->value => $this->last_platelet_donated_at,
-            default                              => $this->last_whole_blood_donated_at ?? $this->last_donated_at,
-        };
-
-        if (!$lastDonatedAt) {
-            return 0;
-        }
-
-        $defaultCooldown = strtolower((string) $this->gender) === 'female' ? 120 : 90;
-
-        $cooldownDays = match ($value) {
-            BloodComponentType::PLASMA->value    => 28,
-            BloodComponentType::PLATELETS->value => 14,
-            default                              => $defaultCooldown,
-        };
-
-        $nextDonationDate = $lastDonatedAt->copy()->addDays($cooldownDays);
-        return max(0, (int) now()->diffInDays($nextDonationDate, false));
+        // All cooldown rules live in config/eligibility.php via EligibilityService.
+        return app(\App\Services\EligibilityService::class)->daysUntilEligible($this, $componentType);
     }
 
     public function getNextEligibleDateAttribute()
     {
-        $lastDonatedAt = $this->last_whole_blood_donated_at ?? $this->last_donated_at;
-        if (!$lastDonatedAt) {
-            return null;
-        }
-
-        $cooldownDays = strtolower((string) $this->gender) === 'female' ? 120 : 90;
-        return $lastDonatedAt->copy()->addDays($cooldownDays);
+        return app(\App\Services\EligibilityService::class)->nextEligibleDate($this);
     }
 
     public function getIsEligibleToDonateAttribute()

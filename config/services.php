@@ -50,8 +50,12 @@ return [
 
     'roktodut_ml' => [
         'base_url' => env('ROKTODUT_ML_BASE_URL', 'http://127.0.0.1:8001'),
-        'api_key' => env('ROKTODUT_AI_SECRET', 'ROKTODUT_AI_SECRET'),
-        'internal_secret' => env('INTERNAL_WEBHOOK_SECRET', 'ROKTODUT_INTERNAL_SECRET'),
+        // No hardcoded fallbacks: this repo is public, so any default here is public too.
+        // An empty value makes the ML client send an empty key (rejected by FastAPI)
+        // and makes the internal endpoint reject every request (see VerifyInternalSecret).
+        // ROKTODUT_AI_SECRET is the legacy name, kept as a fallback for existing .env files.
+        'api_key' => env('ROKTODUT_ML_API_KEY', env('ROKTODUT_AI_SECRET', '')),
+        'internal_secret' => env('INTERNAL_WEBHOOK_SECRET', ''),
         'nlp_placeholder_phone' => env('NLP_PLACEHOLDER_PHONE', '00000000000'),
     ],
 
