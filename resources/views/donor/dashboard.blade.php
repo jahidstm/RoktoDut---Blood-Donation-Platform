@@ -323,6 +323,9 @@
         </div>
     </div>
 
+    {{-- ══ RELIABILITY: how often you say yes when asked (own data only) ══ --}}
+    @include('donor.partials.reliability-card', ['reliability' => $reliability])
+
     {{-- ══ MY CHRONIC PATIENTS (BUDDY SUBSCRIPTIONS) ══ --}}
 
 
