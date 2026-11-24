@@ -77,6 +77,21 @@ class DispatchPathsTest extends MatchingTestCase
         $this->assertNull($this->dispatchedRanking()[0]['distance_km']);
     }
 
+    public function test_unknown_distance_scores_as_a_moderate_distance_not_as_right_here(): void
+    {
+        Queue::fake([DispatchEmergencyAlertsJob::class]);
+        config(['matching.assumed_distance_km' => 10.0]);
+        $unlocated = $this->donor('A+', ['latitude' => null, 'longitude' => null]);
+        $close = $this->donor('A+', $this->north(2));
+        $far = $this->donor('A+', $this->north(15));
+
+        $request = $this->request('A+');
+        (new SmartBloodRequestBroadcastJob($request->id))->handle(app(DfiCalculationService::class));
+
+        // 2 km beats unknown (assumed 10 km), which beats a donor known to be 15 km away.
+        $this->assertSame([$close->id, $unlocated->id, $far->id], array_column($this->dispatchedRanking(), 'donor_id'));
+    }
+
     // ── SosBloodRequestBroadcastJob ────────────────────────────────────────
 
     public function test_sos_reaches_unavailable_donors_but_never_ones_in_cooldown(): void

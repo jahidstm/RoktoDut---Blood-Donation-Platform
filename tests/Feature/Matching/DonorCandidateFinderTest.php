@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Matching;
 
+use App\Models\District;
 use App\Models\DonorAvailability;
 use App\Services\Matching\DonorCandidate;
 use App\Services\Matching\DonorCandidateFinder;
@@ -85,6 +86,23 @@ class DonorCandidateFinderTest extends MatchingTestCase
 
         $this->assertSame([$inDistrict->id], $this->ids($found));
         $this->assertNull($found->first()->distanceKm, 'unknown distance is null, not 9999');
+    }
+
+    public function test_a_request_with_a_pin_still_finds_donors_who_never_pinned_a_location(): void
+    {
+        // Regression: in a database where almost nobody has coordinates, a map pin on the
+        // request used to find zero donors.
+        $near = $this->donor('A+', $this->north(4));
+        $unlocated = $this->donor('A+', ['latitude' => null, 'longitude' => null]);
+        $this->donor('A+', $this->north(30));                                   // pinned, but outside the radius
+        $otherDistrict = $this->donor('A+', ['latitude' => null, 'longitude' => null, 'district_id' => District::create(['division_id' => $this->district->division_id, 'name' => 'Elsewhere'])->id]);
+
+        $found = $this->find($this->request('A+'));
+
+        $this->assertSame([$near->id, $unlocated->id], $this->ids($found), 'known distance first, unknown last');
+        $this->assertEqualsWithDelta(4.0, $found[0]->distanceKm, 0.1);
+        $this->assertNull($found[1]->distanceKm);
+        $this->assertNotContains($otherDistrict->id, $this->ids($found), 'a donor in another district with no pin is not a local candidate');
     }
 
     public function test_availability_flags_can_be_bypassed_but_cooldown_cannot(): void

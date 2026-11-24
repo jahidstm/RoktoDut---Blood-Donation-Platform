@@ -13,7 +13,8 @@ use Illuminate\Support\Collection;
  * Who may be notified for a blood request. Shared by all three dispatch paths.
  *
  * Hard rules only (group compatibility, eligibility, opt-outs, distance). Ordering
- * here is "identical group first, then nearest"; each caller applies its own score.
+ * here is "identical group first, then nearest, unknown distance last"; each caller
+ * applies its own score.
  *
  * Distance is computed in PHP after a bounding-box prefilter. The old SQL
  * `acos(...)` returned NULL when the argument rounded just above 1, which silently
@@ -71,9 +72,19 @@ class DonorCandidateFinder
 
         $hasCoordinates = $request->latitude !== null && $request->longitude !== null;
 
+        // Donors who never pinned a location have no coordinates. Dropping them whenever the
+        // request has a map pin would make the pin (which the form encourages) find nobody
+        // in a database where few donors share a location. So a request with coordinates gets
+        // donors within the radius PLUS same-district donors with an unknown distance.
+        $unlocated = fn () => (clone $query)
+            ->where('district_id', $request->district_id)
+            ->where(fn (Builder $q) => $q->whereNull('latitude')->orWhereNull('longitude'))
+            ->get(['id', 'blood_group'])
+            ->map(fn (User $u) => ['id' => (int) $u->id, 'blood_group' => $u->blood_group, 'distance' => null]);
+
         $rows = $hasCoordinates
-            ? $this->withinRadius($query, (float) $request->latitude, (float) $request->longitude, $radiusKm)
-            : $query->where('district_id', $request->district_id)
+            ? $this->withinRadius(clone $query, (float) $request->latitude, (float) $request->longitude, $radiusKm)->concat($unlocated())
+            : (clone $query)->where('district_id', $request->district_id)
                 ->get(['id', 'blood_group'])
                 ->map(fn (User $u) => ['id' => (int) $u->id, 'blood_group' => $u->blood_group, 'distance' => null]);
 

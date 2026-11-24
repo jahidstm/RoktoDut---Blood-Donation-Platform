@@ -35,3 +35,7 @@ __pycache__/
 mlruns/
 *.duckdb
 *.duckdb.wal
+
+# Local database backups (contain user data; never commit)
+/storage/backups/
+*.sql
