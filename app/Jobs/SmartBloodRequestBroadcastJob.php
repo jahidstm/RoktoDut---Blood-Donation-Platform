@@ -152,12 +152,12 @@ class SmartBloodRequestBroadcastJob implements ShouldQueue
     }
 
     /**
-     * Unknown distance (district fallback) adds no penalty: every candidate of that
-     * request is in the same situation, so it does not change their relative order.
+     * Unknown distance is scored as config('matching.assumed_distance_km'), so a donor
+     * known to be nearby still beats one whose location we do not know.
      */
     private function rankScore(float $responseRate, DonorCandidate $candidate, float $dfiScore, bool $isSuperCritical, bool $isReadyNow): float
     {
-        $score = ($responseRate * 100) - (($candidate->distanceKm ?? 0.0) * 2);
+        $score = ($responseRate * 100) - (($candidate->distanceKm ?? (float) config('matching.assumed_distance_km', 10.0)) * 2);
 
         if (!$candidate->isIdenticalGroup) {
             $score -= (float) config('matching.compatible_group_penalty', 30);

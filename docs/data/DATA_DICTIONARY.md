@@ -113,6 +113,26 @@ not to be exported to analytics.
 `hospitals`: `name`, `name_bn`, `aliases`, `district_id`, `upazila_id`, `is_verified`. Public. **No coordinates.**
 `blood_inventories`: `organization_id`, `blood_group`, `units_available`, `is_accepting_donations`. Public/internal.
 
+## What is actually in the local development database
+
+Counted on 2026-11-24 in the MySQL database `roktodut` (Laragon). **Almost all of it is simulated.**
+
+| Table | Rows | Real or simulated |
+|---|---|---|
+| `users` | 10,050 | 10,003 donors with `@example.com/net/org` emails come from `UserSeeder` (faker). Only about 7 `@gmail.com` accounts are real people (developer and testers) |
+| `donations` | 30,001 | Simulated (`DonationSeeder`), May 2025 to May 2026, by 9,501 donors; 20,983 confirmed, 2,841 disputed, 6,177 pending |
+| `health_records` | 120,504 | Simulated (`HealthRecordSeeder`) |
+| `blood_requests` | 4 | Hand-made while developing. **The demand side is essentially empty** |
+| `blood_request_responses` | 3 | Hand-made |
+| `donor_response_logs` | 33 | Produced by development runs (the logging fix is recent) |
+| `hospitals` | 27 | Seeded on 2026-11-24 (the table was empty before) |
+| `districts` / `upazilas` / `divisions` | 64 / 541 / 8 | Real administrative data |
+
+Consequences:
+- Anything about **supply** (donors, donations) can be demonstrated at a realistic volume, but it is simulated and must be labelled so.
+- Anything about **demand** (requests, response behaviour) has no data. Demand charts and the response model need a simulator (see the plan, Phase 1).
+- **No donor has coordinates** (0 of 10,005). Matching therefore relies on the district for everyone; see the next section.
+
 ## Known data-quality issues
 
 1. `bags_needed` and `units_needed` duplicate each other.
@@ -121,6 +141,7 @@ not to be exported to analytics.
 4. `blood_request_responses.status` has no enum and mixes donor-side and requester-side values.
 5. ~~`historical_response_rate` divided by all rows including `pending`, and new donors started at 0.~~ Fixed in Feature 1: `ResponseRateService` ignores `pending` and smooths toward a prior (`config/matching.php`). Rows logged before that fix still hold the old values.
 5b. For model training, only `accepted`, `declined` and `ignored` rows are labelled outcomes. `pending` (unknown yet) and `moot` (neutral) are censored and must be excluded. `scripts/train_model.py` still treats everything that is not `accepted` as negative; fix that in Feature 6.
+5c. Donors rarely have coordinates (none in the dev database). Before 2026-11-24 a request with a map pin found zero such donors, because only donors with coordinates were considered. Now a request with a pin also gets same-district donors with an unknown distance, scored as `matching.assumed_distance_km`.
 5a. `distance_km` is now nullable; NULL means the request had no coordinates. Older rows with 9999 were converted to NULL by migration.
 6. `donor_response_logs.donor_id` uses `cascadeOnDelete`: deleting a user deletes their training rows.
 7. Log rows are created by `DispatchEmergencyAlertsJob` and `CheckAndCascadeRequestJob`. The smart-broadcast and SOS jobs both hand off to `DispatchEmergencyAlertsJob`, so every dispatch path is covered (verified by reading the dispatch chain).

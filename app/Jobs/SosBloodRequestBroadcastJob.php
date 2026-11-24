@@ -101,12 +101,12 @@ class SosBloodRequestBroadcastJob implements ShouldQueue
 
     /**
      * SOS-specific ranking: Response Rate is primary signal.
-     * Unknown distance (district fallback) adds no penalty, as for every candidate of the request.
+     * Unknown distance is scored as config('matching.assumed_distance_km').
      */
     private function sosRankScore(float $responseRate, DonorCandidate $candidate, bool $isReadyNow): float
     {
         // Response Rate (0–1) × 200 makes it dominant over distance penalty
-        $score = ($responseRate * 200) - (($candidate->distanceKm ?? 0.0) * 2);
+        $score = ($responseRate * 200) - (($candidate->distanceKm ?? (float) config('matching.assumed_distance_km', 10.0)) * 2);
 
         if (!$candidate->isIdenticalGroup) {
             $score -= (float) config('matching.compatible_group_penalty', 30);

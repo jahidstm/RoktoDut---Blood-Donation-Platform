@@ -35,6 +35,14 @@ return [
     ],
 
     /*
+    | Distance used in scores when a donor's distance is unknown (the donor never pinned a
+    | location, or the request has no coordinates). Without this, unknown would score as
+    | "right here" and beat a donor known to be 5 km away. When every candidate of a request
+    | is unknown it is a constant and changes no ordering.
+    */
+    'assumed_distance_km' => 10.0,
+
+    /*
     | Score points subtracted from a donor whose group is compatible but not
     | identical, so exact matches are contacted first when both exist.
     */
