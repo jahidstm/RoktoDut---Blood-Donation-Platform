@@ -12,15 +12,23 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // `MODIFY ... ENUM` is MySQL-only. On other drivers (the SQLite test database)
+        // the column is already a plain string, so only the data rewrite is needed.
+        $isMysql = Schema::getConnection()->getDriverName() === 'mysql';
+
         // Change to VARCHAR first so we can update the strings without truncation
-        DB::statement('ALTER TABLE `blood_requests` MODIFY `urgency` VARCHAR(255) NOT NULL');
+        if ($isMysql) {
+            DB::statement('ALTER TABLE `blood_requests` MODIFY `urgency` VARCHAR(255) NOT NULL');
+        }
         
         // Update data
         DB::table('blood_requests')->where('urgency', 'medium')->update(['urgency' => 'normal']);
         DB::table('blood_requests')->where('urgency', 'high')->update(['urgency' => 'urgent']);
         
         // Change to new ENUM
-        DB::statement("ALTER TABLE `blood_requests` MODIFY `urgency` ENUM('normal', 'urgent', 'emergency') NOT NULL DEFAULT 'normal'");
+        if ($isMysql) {
+            DB::statement("ALTER TABLE `blood_requests` MODIFY `urgency` ENUM('normal', 'urgent', 'emergency') NOT NULL DEFAULT 'normal'");
+        }
     }
 
     /**
@@ -28,11 +36,17 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::statement('ALTER TABLE `blood_requests` MODIFY `urgency` VARCHAR(255) NOT NULL');
+        $isMysql = Schema::getConnection()->getDriverName() === 'mysql';
+
+        if ($isMysql) {
+            DB::statement('ALTER TABLE `blood_requests` MODIFY `urgency` VARCHAR(255) NOT NULL');
+        }
         
         DB::table('blood_requests')->where('urgency', 'normal')->update(['urgency' => 'medium']);
         DB::table('blood_requests')->where('urgency', 'urgent')->update(['urgency' => 'high']);
         
-        DB::statement("ALTER TABLE `blood_requests` MODIFY `urgency` ENUM('medium', 'high', 'emergency') NOT NULL DEFAULT 'medium'");
+        if ($isMysql) {
+            DB::statement("ALTER TABLE `blood_requests` MODIFY `urgency` ENUM('medium', 'high', 'emergency') NOT NULL DEFAULT 'medium'");
+        }
     }
 };
