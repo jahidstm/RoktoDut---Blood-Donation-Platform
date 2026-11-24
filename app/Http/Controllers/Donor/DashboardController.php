@@ -235,8 +235,12 @@ class DashboardController extends Controller
             }
         }
 
+        // ── ১১. Reliability (own data only; never shown to requesters or other donors) ──
+        $reliability = app(\App\Services\Matching\DonorReliabilityService::class)->forDonor($user);
+
         return view('donor.dashboard', compact(
             'user',
+            'reliability',
             'gamificationStats',
             'totalRequestsMade',
             'totalContributions',

@@ -50,4 +50,17 @@ return [
         'mean' => 0.3,
         'strength' => 5,
     ],
+
+    /*
+    | How the donor-facing reliability label is derived from the smoothed response
+    | rate. Bands and sample sizes are product choices, not statistics: with few
+    | answers the rate is mostly the prior, so the label says "not enough history"
+    | instead of pretending to know.
+    */
+    'reliability' => [
+        'min_answers' => 5,        // below this: "new"
+        'high_confidence_answers' => 15,
+        'high_rate' => 0.7,
+        'medium_rate' => 0.4,
+    ],
 ];
