@@ -24,3 +24,14 @@ Homestead.yaml
 Thumbs.db
 firebase_credentials.json
 firebase_credentials.json.json
+
+# Python / ML service
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# Analytics + MLOps outputs (added early so they are never committed by accident)
+mlruns/
+*.duckdb
+*.duckdb.wal
