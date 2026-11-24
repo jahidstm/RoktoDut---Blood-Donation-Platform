@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\BloodRequest;
 use App\Models\DonorResponseLog;
 
 /**
@@ -10,6 +11,9 @@ use App\Models\DonorResponseLog;
  * The dispatch jobs create a row with status "pending" when a donor is notified. Before this
  * service nothing ever moved a row out of "pending", so the table (the training data for the
  * response model) had no outcomes at all.
+ *
+ * Outcomes: pending (not yet known), accepted, declined, ignored (no answer), moot (settled by
+ * someone else before the donor answered; neutral).
  *
  * Vocabulary: the donor-side statuses on `blood_request_responses` mean
  *   pending / contacted  -> the donor said "I can donate"   -> log "accepted"
@@ -24,6 +28,9 @@ class DonorResponseLogger
 {
     /** A notified donor who has not answered within this many hours counts as having ignored it. */
     public const IGNORE_AFTER_HOURS = 24;
+
+    /** Request statuses meaning someone else (or nobody) settled it. */
+    private const SETTLED_REQUEST_STATUSES = ['fulfilled', 'rejected'];
 
     /**
      * Record a donor's answer to a request they were notified about.
@@ -81,13 +88,28 @@ class DonorResponseLogger
     }
 
     /**
-     * Anyone notified more than IGNORE_AFTER_HOURS ago who never answered counts as having ignored it.
+     * Anyone notified more than IGNORE_AFTER_HOURS ago who never answered:
+     *  - request already settled (fulfilled / rejected) -> "moot": the donor
+     *    may never have had a chance to matter, so it must not count against them;
+     *  - otherwise -> "ignored".
+     * "moot" errs on the side of not penalising: a donor who sat on a request for hours
+     * before someone else was confirmed is also counted moot.
+     *
+     * @return int number of rows changed
      */
     public function markStaleAsIgnored(): int
     {
-        return DonorResponseLog::query()
+        $stale = fn () => DonorResponseLog::query()
             ->where('status', 'pending')
-            ->where('notified_at', '<', now()->subHours(self::IGNORE_AFTER_HOURS))
-            ->update(['status' => 'ignored']);
+            ->where('notified_at', '<', now()->subHours(self::IGNORE_AFTER_HOURS));
+
+        $settled = BloodRequest::query()
+            ->whereIn('status', self::SETTLED_REQUEST_STATUSES)
+            ->select('id');
+
+        $moot = $stale()->whereIn('request_id', $settled)->update(['status' => 'moot']);
+        $ignored = $stale()->update(['status' => 'ignored']);
+
+        return $moot + $ignored;
     }
 }
