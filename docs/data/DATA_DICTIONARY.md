@@ -80,7 +80,7 @@ finished by `DonorResponseLogger`.
 |---|---|
 | `request_id`, `donor_id` | Who was notified about what |
 | `notified_at` | When the notification went out |
-| `status` | `pending` (not answered yet), `accepted` (donor said yes), `declined`, `ignored` (no answer: request closed, or 24 h passed) |
+| `status` | `pending` (not answered yet), `accepted` (donor said yes), `declined`, `ignored` (no answer: request expired, or 24 h passed with the request still open), `moot` (request was fulfilled or rejected before the donor answered; neutral, counts for nothing). The column is a plain string since migration `2026_11_24_000002`, no longer an ENUM |
 | `responded_at`, `response_time_minutes` | First answer only. A later change of mind updates `status` but not these |
 | `distance_km`, `days_since_last_donation`, `temporal_hour`, `is_weekend` | Features **as they were at notification time**. `distance_km` is NULL when unknown; `days_since_last_donation` is 365 for a donor who never donated |
 | `historical_response_rate` | Donor's smoothed rate at notification time (`ResponseRateService`) |
@@ -120,6 +120,7 @@ not to be exported to analytics.
 3. `donations.district` is free text; other tables use ids.
 4. `blood_request_responses.status` has no enum and mixes donor-side and requester-side values.
 5. ~~`historical_response_rate` divided by all rows including `pending`, and new donors started at 0.~~ Fixed in Feature 1: `ResponseRateService` ignores `pending` and smooths toward a prior (`config/matching.php`). Rows logged before that fix still hold the old values.
+5b. For model training, only `accepted`, `declined` and `ignored` rows are labelled outcomes. `pending` (unknown yet) and `moot` (neutral) are censored and must be excluded. `scripts/train_model.py` still treats everything that is not `accepted` as negative; fix that in Feature 6.
 5a. `distance_km` is now nullable; NULL means the request had no coordinates. Older rows with 9999 were converted to NULL by migration.
 6. `donor_response_logs.donor_id` uses `cascadeOnDelete`: deleting a user deletes their training rows.
 7. Log rows are created by `DispatchEmergencyAlertsJob` and `CheckAndCascadeRequestJob`. The smart-broadcast and SOS jobs both hand off to `DispatchEmergencyAlertsJob`, so every dispatch path is covered (verified by reading the dispatch chain).
