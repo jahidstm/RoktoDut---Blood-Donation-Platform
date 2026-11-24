@@ -119,30 +119,8 @@ class SosBloodRequestBroadcastJob implements ShouldQueue
                 fn(Builder $q) => $q->where('id', '!=', $request->requested_by)
             );
 
-        // ── Component-based cooldown check (medical safety — cannot bypass) ──
-        $component = $request->component_type instanceof BloodComponentType
-            ? $request->component_type->value
-            : (string) ($request->component_type ?? BloodComponentType::WHOLE_BLOOD->value);
-
-        if ($component === BloodComponentType::PLASMA->value) {
-            $query->where(function (Builder $sq) {
-                $sq->whereNull('last_plasma_donated_at')
-                   ->orWhere('last_plasma_donated_at', '<=', now()->subDays(28));
-            });
-        } elseif ($component === BloodComponentType::PLATELETS->value) {
-            $query->where(function (Builder $sq) {
-                $sq->whereNull('last_platelet_donated_at')
-                   ->orWhere('last_platelet_donated_at', '<=', now()->subDays(14));
-            });
-        } else {
-            $query->where(function (Builder $sq) {
-                $sq->whereNull('last_whole_blood_donated_at')
-                   ->orWhere('last_whole_blood_donated_at', '<=', now()->subDays(120));
-            })->where(function (Builder $sq) {
-                $sq->whereNull('last_donated_at')
-                   ->orWhere('last_donated_at', '<=', now()->subDays(120));
-            });
-        }
+        // Medical safety, cannot be bypassed even for SOS. Rules: config/eligibility.php
+        app(\App\Services\EligibilityService::class)->scopeEligible($query, $request->component_type);
 
         // ── NOTE: DFI threshold, is_available, Quiet Hours, Calendar ─────────
         // ALL bypassed for SOS (is_super_critical = true guarantees this)
