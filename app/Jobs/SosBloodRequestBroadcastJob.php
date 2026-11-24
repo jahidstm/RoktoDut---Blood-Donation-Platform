@@ -2,18 +2,17 @@
 
 namespace App\Jobs;
 
-use App\Enums\BloodComponentType;
 use App\Models\BloodRequest;
-use App\Models\DonorResponseLog;
-use App\Models\User;
 use App\Services\DfiCalculationService;
+use App\Services\EligibilityService;
+use App\Services\Matching\DonorCandidate;
+use App\Services\Matching\DonorCandidateFinder;
+use App\Services\Matching\ResponseRateService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Carbon;
 
 /**
  * SosBloodRequestBroadcastJob
@@ -22,11 +21,11 @@ use Illuminate\Support\Carbon;
  * Key differences from SmartBloodRequestBroadcastJob:
  *   - DFI threshold check     → BYPASSED (life > score)
  *   - Quiet Hours check       → BYPASSED (2am notifications allowed)
- *   - Availability Calendar   → BYPASSED (is_super_critical = true)
+ *   - Availability toggle and calendar → BYPASSED
+ *   - Medical cooldown and group compatibility → NEVER bypassed (DonorCandidateFinder)
  *   - topK                    → 20 (strict limit, quality > quantity)
  *   - Radius                  → 10km (hyper-local first)
  *   - Ranking                 → Response Rate weighted (best responders first)
- *   - Queue                   → 'sos' (high-priority queue)
  */
 class SosBloodRequestBroadcastJob implements ShouldQueue
 {
@@ -42,55 +41,54 @@ class SosBloodRequestBroadcastJob implements ShouldQueue
         public int $topK = self::DEFAULT_TOP_K
     ) {}
 
-    public function handle(DfiCalculationService $dfiService): void
-    {
+    public function handle(
+        DfiCalculationService $dfiService,
+        ?DonorCandidateFinder $finder = null,
+        ?ResponseRateService $responseRates = null,
+    ): void {
+        $finder ??= app(DonorCandidateFinder::class);
+        $responseRates ??= app(ResponseRateService::class);
+
         $bloodRequest = BloodRequest::with(['district', 'upazila', 'hospital'])->find($this->bloodRequestId);
         if (!$bloodRequest) {
             return;
         }
 
-        $now        = now();
-        $candidates = $this->fetchSosCandidates($bloodRequest);
+        $now = now();
+        $candidates = $finder->find(
+            $bloodRequest,
+            radiusKm: self::MAX_DISTANCE_KM,
+            limit: min(self::MAX_CANDIDATES, $this->topK * self::CANDIDATE_MULTIPLIER),
+            respectAvailabilityToggle: false,
+            respectCalendar: false,
+        );
 
         if ($candidates->isEmpty()) {
             return;
         }
 
-        $candidateIds  = $candidates->pluck('id')->map(fn($id) => (int) $id)->all();
-        $responseStats = $this->getResponseStats($candidateIds);
+        $rates = $responseRates->forDonors($candidates->map(fn (DonorCandidate $c) => (int) $c->user->id)->all());
 
-        $ranked = [];
+        $eligibility = app(EligibilityService::class);
 
-        foreach ($candidates as $donor) {
-            $donorId     = (int) $donor->id;
-            $distanceKm  = round((float) ($donor->distance_km ?? 9999.0), 2);
+        $ranked = $candidates->map(function (DonorCandidate $c) use ($rates, $now, $eligibility, $bloodRequest): array {
+            $donorId = (int) $c->user->id;
 
-            $stats       = $responseStats[$donorId] ?? ['accepted' => 0, 'total' => 0];
-            $responseRate = $stats['total'] > 0
-                ? round($stats['accepted'] / $stats['total'], 4)
-                : 0.0;
-
-            // ── SOS Ranking: Response Rate is king, distance is secondary ──
-            // DFI is intentionally excluded for SOS (life > score)
-            $rankScore = $this->sosRankScore($responseRate, $distanceKm, (bool) $donor->is_ready_now);
-
-            $ranked[] = [
-                'donor_id'                => $donorId,
-                'distance_km'             => $distanceKm,
-                'days_since_last_donation'=> 0,
-                'temporal_hour'           => (int) $now->hour,
-                'is_weekend'              => (bool) $now->isWeekend(),
-                'historical_response_rate'=> $responseRate,
-                'rank_score'              => $rankScore,
+            return [
+                'donor_id'                 => $donorId,
+                'distance_km'              => $c->distanceKm,
+                // was hardcoded to 0, which wrote a wrong feature into donor_response_logs
+                'days_since_last_donation' => $eligibility->daysSinceLastDonation($c->user, $bloodRequest->component_type, $now),
+                'temporal_hour'            => (int) $now->hour,
+                'is_weekend'               => (bool) $now->isWeekend(),
+                'historical_response_rate' => $rates[$donorId],
+                'is_identical_group'       => $c->isIdenticalGroup,
+                // DFI is intentionally excluded for SOS (life > score)
+                'rank_score'               => $this->sosRankScore($rates[$donorId], $c, (bool) $c->user->is_ready_now),
             ];
-        }
+        })->all();
 
-        if ($ranked === []) {
-            return;
-        }
-
-        // Sort by rank descending (best responders first)
-        usort($ranked, fn(array $a, array $b) => $b['rank_score'] <=> $a['rank_score']);
+        usort($ranked, fn (array $a, array $b) => $b['rank_score'] <=> $a['rank_score']);
         $topK = array_slice($ranked, 0, max(1, $this->topK));
 
         // Reuse the existing DispatchEmergencyAlertsJob for actual notification delivery
@@ -101,95 +99,23 @@ class SosBloodRequestBroadcastJob implements ShouldQueue
         )->afterCommit();
     }
 
-    // ── Fetch SOS candidates: ALL filters bypassed, high response rate sorted ─
-    private function fetchSosCandidates(BloodRequest $request)
-    {
-        $bloodGroup = is_object($request->blood_group)
-            ? $request->blood_group->value
-            : (string) $request->blood_group;
-
-        $candidateLimit = min(self::MAX_CANDIDATES, $this->topK * self::CANDIDATE_MULTIPLIER);
-
-        $query = User::query()
-            ->where('is_donor', true)
-            ->where('blood_group', $bloodGroup)
-            ->where('is_shadowbanned', false)
-            ->when(
-                $request->requested_by !== null,
-                fn(Builder $q) => $q->where('id', '!=', $request->requested_by)
-            );
-
-        // Medical safety, cannot be bypassed even for SOS. Rules: config/eligibility.php
-        app(\App\Services\EligibilityService::class)->scopeEligible($query, $request->component_type);
-
-        // ── NOTE: DFI threshold, is_available, Quiet Hours, Calendar ─────────
-        // ALL bypassed for SOS (is_super_critical = true guarantees this)
-        // We intentionally do NOT add `is_available = true` filter here.
-
-        // ── Spatial filter: GPS if available, otherwise district fallback ──
-        if ($request->latitude !== null && $request->longitude !== null) {
-            $lat = (float) $request->latitude;
-            $lng = (float) $request->longitude;
-
-            $haversine = '(6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude))))';
-
-            $query
-                ->whereNotNull('latitude')
-                ->whereNotNull('longitude')
-                ->selectRaw("users.*, {$haversine} AS distance_km", [$lat, $lng, $lat])
-                ->having('distance_km', '<=', self::MAX_DISTANCE_KM)
-                ->orderBy('distance_km');
-        } else {
-            // GPS unavailable → district fallback
-            $query
-                ->where('district_id', $request->district_id)
-                ->selectRaw('users.*, 9999.00 AS distance_km')
-                ->orderBy('id');
-        }
-
-        return $query->limit($candidateLimit)->get();
-    }
-
     /**
      * SOS-specific ranking: Response Rate is primary signal.
-     * DFI is excluded because life is more important than donor fatigue score.
+     * Unknown distance (district fallback) adds no penalty, as for every candidate of the request.
      */
-    private function sosRankScore(float $responseRate, float $distanceKm, bool $isReadyNow): float
+    private function sosRankScore(float $responseRate, DonorCandidate $candidate, bool $isReadyNow): float
     {
         // Response Rate (0–1) × 200 makes it dominant over distance penalty
-        $score = ($responseRate * 200) - ($distanceKm * 2);
+        $score = ($responseRate * 200) - (($candidate->distanceKm ?? 0.0) * 2);
+
+        if (!$candidate->isIdenticalGroup) {
+            $score -= (float) config('matching.compatible_group_penalty', 30);
+        }
 
         if ($isReadyNow) {
             $score += 10;
         }
 
         return round($score, 2);
-    }
-
-    /**
-     * @param array<int> $donorIds
-     * @return array<int, array{accepted:int, total:int}>
-     */
-    private function getResponseStats(array $donorIds): array
-    {
-        if ($donorIds === []) {
-            return [];
-        }
-
-        $stats = DonorResponseLog::query()
-            ->whereIn('donor_id', $donorIds)
-            ->selectRaw('donor_id, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS accepted_count, COUNT(*) AS total_count', ['accepted'])
-            ->groupBy('donor_id')
-            ->get();
-
-        $response = [];
-        foreach ($stats as $row) {
-            $response[(int) $row->donor_id] = [
-                'accepted' => (int) $row->accepted_count,
-                'total'    => (int) $row->total_count,
-            ];
-        }
-
-        return $response;
     }
 }

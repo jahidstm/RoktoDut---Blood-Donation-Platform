@@ -82,8 +82,8 @@ finished by `DonorResponseLogger`.
 | `notified_at` | When the notification went out |
 | `status` | `pending` (not answered yet), `accepted` (donor said yes), `declined`, `ignored` (no answer: request closed, or 24 h passed) |
 | `responded_at`, `response_time_minutes` | First answer only. A later change of mind updates `status` but not these |
-| `distance_km`, `days_since_last_donation`, `temporal_hour`, `is_weekend` | Features **as they were at notification time** |
-| `historical_response_rate` | Donor's rate at notification time. Currently counts `pending` rows in the denominator (see Known issues) |
+| `distance_km`, `days_since_last_donation`, `temporal_hour`, `is_weekend` | Features **as they were at notification time**. `distance_km` is NULL when unknown; `days_since_last_donation` is 365 for a donor who never donated |
+| `historical_response_rate` | Donor's smoothed rate at notification time (`ResponseRateService`) |
 
 Class: internal, but the donor link makes it personal data. Pseudonymise `donor_id` for analytics.
 
@@ -119,7 +119,8 @@ not to be exported to analytics.
 2. `last_donated_at` and `last_donation_date` both exist, plus three per-component columns. Eligibility now takes the most recent whole-blood date of the two.
 3. `donations.district` is free text; other tables use ids.
 4. `blood_request_responses.status` has no enum and mixes donor-side and requester-side values.
-5. `historical_response_rate` is calculated by dividing by **all** log rows, including unanswered `pending` ones, so it understates real response rates. New donors start at 0, which pushes them to the bottom of rankings.
+5. ~~`historical_response_rate` divided by all rows including `pending`, and new donors started at 0.~~ Fixed in Feature 1: `ResponseRateService` ignores `pending` and smooths toward a prior (`config/matching.php`). Rows logged before that fix still hold the old values.
+5a. `distance_km` is now nullable; NULL means the request had no coordinates. Older rows with 9999 were converted to NULL by migration.
 6. `donor_response_logs.donor_id` uses `cascadeOnDelete`: deleting a user deletes their training rows.
 7. Log rows are created by `DispatchEmergencyAlertsJob` and `CheckAndCascadeRequestJob`. The smart-broadcast and SOS jobs both hand off to `DispatchEmergencyAlertsJob`, so every dispatch path is covered (verified by reading the dispatch chain).
 8. `nid_number` is stored in plaintext.

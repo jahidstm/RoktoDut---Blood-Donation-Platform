@@ -2,20 +2,27 @@
 
 namespace App\Jobs;
 
-use App\Enums\BloodComponentType;
 use App\Models\BloodRequest;
-use App\Models\DonorAvailability;
 use App\Models\DonorResponseLog;
 use App\Models\User;
 use App\Services\DfiCalculationService;
+use App\Services\EligibilityService;
+use App\Services\Matching\DonorCandidate;
+use App\Services\Matching\DonorCandidateFinder;
+use App\Services\Matching\ResponseRateService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Carbon;
 
+/**
+ * Main dispatch path for normal and urgent requests (BloodRequestController).
+ * Candidates come from DonorCandidateFinder (hard rules); this job applies the
+ * soft rules (fatigue, quiet hours) and the score, then hands the top K to
+ * DispatchEmergencyAlertsJob.
+ */
 class SmartBloodRequestBroadcastJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
@@ -33,8 +40,14 @@ class SmartBloodRequestBroadcastJob implements ShouldQueue
         public int $topK = self::DEFAULT_TOP_K
     ) {}
 
-    public function handle(DfiCalculationService $dfiService): void
-    {
+    public function handle(
+        DfiCalculationService $dfiService,
+        ?DonorCandidateFinder $finder = null,
+        ?ResponseRateService $responseRates = null,
+    ): void {
+        $finder ??= app(DonorCandidateFinder::class);
+        $responseRates ??= app(ResponseRateService::class);
+
         $bloodRequest = BloodRequest::with(['district', 'upazila', 'hospital'])->find($this->bloodRequestId);
         if (!$bloodRequest) {
             return;
@@ -44,25 +57,31 @@ class SmartBloodRequestBroadcastJob implements ShouldQueue
         $isSuperCritical = (bool) $bloodRequest->is_super_critical;
         $isQuietHours = $this->isQuietHours($now) && !$isSuperCritical;
 
-        $candidates = $this->fetchCandidates($bloodRequest, $this->candidateLimit());
+        // Super-critical requests skip the donor's calendar but still respect an explicit "not available".
+        $candidates = $finder->find(
+            $bloodRequest,
+            radiusKm: self::MAX_DISTANCE_KM,
+            limit: $this->candidateLimit(),
+            respectAvailabilityToggle: true,
+            respectCalendar: !$isSuperCritical,
+        );
+
         if ($candidates->isEmpty()) {
             return;
         }
 
-        $candidateIds = $candidates->pluck('id')->map(fn($id) => (int) $id)->all();
-        $responseStats = $this->getResponseStats($candidateIds);
+        $candidateIds = $candidates->map(fn (DonorCandidate $c) => (int) $c->user->id)->all();
+        $rates = $responseRates->forDonors($candidateIds);
         $ignoredCounts = $this->getIgnoredCounts($candidateIds, DfiCalculationService::DEFAULT_IGNORE_AFTER_HOURS);
 
         $ranked = [];
 
-        foreach ($candidates as $donor) {
+        foreach ($candidates as $candidate) {
+            $donor = $candidate->user;
             $donorId = (int) $donor->id;
             $ignored = (int) ($ignoredCounts[$donorId] ?? 0);
             $dfiScore = $dfiService->calculateForDonor($donor, $ignored, $now);
-            $daysSinceLastDonation = $dfiService->resolveDaysSinceLastDonation($donor, $now);
-
-            $stats = $responseStats[$donorId] ?? ['accepted' => 0, 'total' => 0];
-            $responseRate = $stats['total'] > 0 ? round($stats['accepted'] / $stats['total'], 4) : 0.0;
+            $responseRate = $rates[$donorId];
 
             if (!$isSuperCritical) {
                 if ($dfiScore > self::MAX_DFI_THRESHOLD) {
@@ -74,17 +93,15 @@ class SmartBloodRequestBroadcastJob implements ShouldQueue
                 }
             }
 
-            $distanceKm = round((float) ($donor->distance_km ?? 9999.0), 2);
-            $rankScore = $this->rankScore($responseRate, $distanceKm, $dfiScore, $isSuperCritical, (bool) $donor->is_ready_now);
-
             $ranked[] = [
                 'donor_id' => $donorId,
-                'distance_km' => $distanceKm,
-                'days_since_last_donation' => $daysSinceLastDonation,
+                'distance_km' => $candidate->distanceKm,
+                'days_since_last_donation' => app(EligibilityService::class)->daysSinceLastDonation($donor, $bloodRequest->component_type, $now),
                 'temporal_hour' => (int) $now->hour,
                 'is_weekend' => (bool) $now->isWeekend(),
                 'historical_response_rate' => $responseRate,
-                'rank_score' => $rankScore,
+                'is_identical_group' => $candidate->isIdenticalGroup,
+                'rank_score' => $this->rankScore($responseRate, $candidate, $dfiScore, $isSuperCritical, (bool) $donor->is_ready_now),
             ];
 
             if (abs((float) $donor->dfi_score - $dfiScore) > 0.01) {
@@ -96,134 +113,13 @@ class SmartBloodRequestBroadcastJob implements ShouldQueue
             return;
         }
 
-        usort($ranked, fn(array $a, array $b) => $b['rank_score'] <=> $a['rank_score']);
+        usort($ranked, fn (array $a, array $b) => $b['rank_score'] <=> $a['rank_score']);
         $topK = array_slice($ranked, 0, max(1, $this->topK));
 
         DispatchEmergencyAlertsJob::dispatch(
             bloodRequestId: $bloodRequest->id,
             rankedDonors: $topK
         )->afterCommit();
-    }
-
-    private function fetchCandidates(BloodRequest $request, int $limit)
-    {
-        $bloodGroup = is_object($request->blood_group)
-            ? $request->blood_group->value
-            : (string) $request->blood_group;
-
-        $query = User::query()
-            ->where('is_donor', true)
-            ->where('blood_group', $bloodGroup)
-            ->where('is_shadowbanned', false)
-            ->when(
-                $request->requested_by !== null,
-                fn(Builder $q) => $q->where('id', '!=', $request->requested_by)
-            )
-            ->where(function (Builder $q) {
-                $q->whereNull('is_available')->orWhere('is_available', true);
-            })
-            ->where(function (Builder $q) {
-                $q->whereNull('cooldown_until')->orWhere('cooldown_until', '<=', now());
-            });
-
-        // Component + gender cooldown: config/eligibility.php (single source of truth)
-        app(\App\Services\EligibilityService::class)->scopeEligible($query, $request->component_type);
-
-        if ($request->latitude !== null && $request->longitude !== null) {
-            $lat = (float) $request->latitude;
-            $lng = (float) $request->longitude;
-
-            $haversine = '(6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude))))';
-
-            $query
-                ->whereNotNull('latitude')
-                ->whereNotNull('longitude')
-                ->selectRaw("users.*, {$haversine} AS distance_km", [$lat, $lng, $lat])
-                ->having('distance_km', '<=', self::MAX_DISTANCE_KM)
-                ->orderBy('distance_km');
-        } else {
-            $query
-                ->where('district_id', $request->district_id)
-                ->selectRaw('users.*, 9999.00 AS distance_km')
-                ->orderBy('id');
-        }
-
-        // 🗓️ Calendar Bitmask Filter
-        // Super-critical emergencies bypass the calendar — human life > schedule.
-        if (!$this->isSuperCritical($request)) {
-            $now         = now()->setTimezone('Asia/Dhaka');
-            $todayBit    = DonorAvailability::bitForDay($now->dayOfWeek);
-            $todayDate   = $now->toDateString();
-            $currentTime = $now->format('H:i:s');
-
-            $query->where(function (Builder $q) use ($todayBit, $todayDate, $currentTime) {
-                $q->whereDoesntHave(
-                    'availabilities',
-                    fn (Builder $r) => $r->where('is_active', true)
-                )
-                ->orWhereHas('availabilities', function (Builder $r) use ($todayBit, $todayDate, $currentTime) {
-                    $r->where('is_active', true)
-                      ->where(function (Builder $rq) use ($todayBit, $todayDate, $currentTime) {
-                          $rq->where(function (Builder $sq) use ($todayBit, $currentTime) {
-                              $sq->where('type', 'weekly')
-                                 ->whereRaw('(weekdays_bitmask & ?) > 0', [$todayBit])
-                                 ->where(fn (Builder $tq) => $tq
-                                     ->whereNull('time_from')
-                                     ->orWhereRaw('? BETWEEN time_from AND time_to', [$currentTime]));
-                          })
-                          ->orWhere(function (Builder $sq) use ($todayDate, $currentTime) {
-                              $sq->where('type', 'specific_date')
-                                 ->where('specific_date', $todayDate)
-                                 ->where(fn (Builder $tq) => $tq
-                                     ->whereNull('time_from')
-                                     ->orWhereRaw('? BETWEEN time_from AND time_to', [$currentTime]));
-                          })
-                          ->orWhere(function (Builder $sq) use ($todayDate, $currentTime) {
-                              $sq->where('type', 'date_range')
-                                 ->where('date_from', '<=', $todayDate)
-                                 ->where('date_to', '>=', $todayDate)
-                                 ->where(fn (Builder $tq) => $tq
-                                     ->whereNull('time_from')
-                                     ->orWhereRaw('? BETWEEN time_from AND time_to', [$currentTime]));
-                          });
-                      });
-                });
-            });
-        }
-
-        return $query->limit($limit)->get();
-    }
-
-    private function isSuperCritical(BloodRequest $request): bool
-    {
-        return (bool) $request->is_super_critical;
-    }
-
-    /**
-     * @param array<int> $donorIds
-     * @return array<int, array{accepted:int,total:int}>
-     */
-    private function getResponseStats(array $donorIds): array
-    {
-        if ($donorIds === []) {
-            return [];
-        }
-
-        $stats = DonorResponseLog::query()
-            ->whereIn('donor_id', $donorIds)
-            ->selectRaw('donor_id, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS accepted_count, COUNT(*) AS total_count', ['accepted'])
-            ->groupBy('donor_id')
-            ->get();
-
-        $response = [];
-        foreach ($stats as $row) {
-            $response[(int) $row->donor_id] = [
-                'accepted' => (int) $row->accepted_count,
-                'total' => (int) $row->total_count,
-            ];
-        }
-
-        return $response;
     }
 
     /**
@@ -245,7 +141,7 @@ class SmartBloodRequestBroadcastJob implements ShouldQueue
             ->selectRaw('donor_id, COUNT(*) AS ignored_count')
             ->groupBy('donor_id')
             ->pluck('ignored_count', 'donor_id')
-            ->map(fn($value) => (int) $value)
+            ->map(fn ($value) => (int) $value)
             ->all();
     }
 
@@ -255,9 +151,17 @@ class SmartBloodRequestBroadcastJob implements ShouldQueue
         return $hour >= self::QUIET_HOURS_START || $hour <= self::QUIET_HOURS_END;
     }
 
-    private function rankScore(float $responseRate, float $distanceKm, float $dfiScore, bool $isSuperCritical, bool $isReadyNow): float
+    /**
+     * Unknown distance (district fallback) adds no penalty: every candidate of that
+     * request is in the same situation, so it does not change their relative order.
+     */
+    private function rankScore(float $responseRate, DonorCandidate $candidate, float $dfiScore, bool $isSuperCritical, bool $isReadyNow): float
     {
-        $score = ($responseRate * 100) - ($distanceKm * 2);
+        $score = ($responseRate * 100) - (($candidate->distanceKm ?? 0.0) * 2);
+
+        if (!$candidate->isIdenticalGroup) {
+            $score -= (float) config('matching.compatible_group_penalty', 30);
+        }
 
         if (!$isSuperCritical) {
             $score -= $dfiScore;
