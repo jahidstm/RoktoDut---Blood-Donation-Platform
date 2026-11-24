@@ -12,7 +12,7 @@
 | ক্রম | Feature | বাস্তবে কী কাজে লাগবে | ML লাগবে? | আনুমানিক সময় | অবস্থা |
 |---|---|---|---|---|---|
 | ০ | প্রস্তুতি: পুরোনো কিছু সমস্যা ঠিক করা | এগুলো ঠিক না করলে পরের feature ঠিকমতো কাজ করবে না | না | ১ সপ্তাহ | 🟨 কোড শেষ (branch `chore/phase-0-foundation`), commit ও merge বাকি |
-| ১ | Smart Donor Matching (উন্নত) | সঠিক, যোগ্য আর কাছের দাতাকে আগে খবর দেওয়া | না (নিয়ম দিয়ে) | ১ সপ্তাহ | ⬜ |
+| ১ | Smart Donor Matching (উন্নত) | সঠিক, যোগ্য আর কাছের দাতাকে আগে খবর দেওয়া | না (নিয়ম দিয়ে) | ১ সপ্তাহ | ✅ |
 | ২ | দাতার সাড়া ট্র্যাক করা ও Reliability Score | কোন দাতা আসলে সাড়া দেন, তা জানা। পরের ML-এর ডেটাও এখান থেকে আসবে | না (হিসাব) | ৪–৫ দিন | ⬜ |
 | ৩ | টেক্সট থেকে রক্তের অনুরোধ অটো-পূরণ (বাংলা/ইংরেজি) | ফেসবুক বা মেসেঞ্জারের পোস্ট paste করলেই ফর্ম নিজে পূরণ হয়ে যাবে | হ্যাঁ (NLP + LLM) | ১.৫–২ সপ্তাহ | ⬜ |
 | ৪ | Admin Analytics Dashboard | কোন এলাকায়, কোন গ্রুপের, কখন রক্তের চাহিদা বেশি, তা দেখা | না (Data Analysis) | ১ সপ্তাহ | ⬜ |
@@ -65,7 +65,8 @@
 **এখন কী হয়:** শুধু হুবহু একই গ্রুপের দাতাকে খোঁজা হয়, যেমন A+ রোগীর জন্য শুধু A+। আর দাতা খোঁজার কোড তিনটা আলাদা জায়গায় তিনভাবে লেখা।
 
 **কী বানাবো:**
-- রক্তের গ্রুপ মেলানো (compatibility): যেমন A+ রোগী O+ বা O− থেকেও রক্ত নিতে পারেন। এই টেবিল কোডে আগে থেকেই আছে (`BloodGroup::compatibleDonors()`), শুধু ব্যবহার হচ্ছে না। একই গ্রুপের দাতা আগে আসবেন, তারপর অন্য compatible গ্রুপের দাতা।
+- রক্তের গ্রুপ মেলানো (compatibility): **শুধু packed RBC (রেড সেল)-এর অনুরোধে** A+ রোগীর জন্য O+ বা O− দাতাকেও খোঁজা হবে। এই টেবিল কোডে আগে থেকেই আছে (`BloodGroup::compatibleDonors()`)। একই গ্রুপের দাতা আগে আসবেন, তারপর অন্য compatible গ্রুপের দাতা।
+  - *সংশোধন:* এই ফাইলের আগের সংস্করণে লেখা ছিল যে whole blood-এও A+ রোগী O+ বা O− নিতে পারেন। সেটা ভুল সরলীকরণ ছিল। Whole blood-এ দাতার plasma-ও থাকে, তাই whole blood হুবহু একই গ্রুপে রাখা হয়েছে।
 - একটা জায়গায় সব নিয়ম: যোগ্যতা (শেষ রক্তদানের তারিখ), দূরত্ব, availability calendar।
 - নতুন দাতাকে পেছনে না ফেলা। এখন নতুন দাতার "সাড়ার হার" ০ ধরা হয়, তাই তাঁরা তালিকার শেষে চলে যান।
 
@@ -74,6 +75,23 @@
 **পুরোনো যা বদলাতে হবে:** [DonorMatchingService.php](app/Services/DonorMatchingService.php), [SmartBloodRequestBroadcastJob.php](app/Jobs/SmartBloodRequestBroadcastJob.php), [SosBloodRequestBroadcastJob.php](app/Jobs/SosBloodRequestBroadcastJob.php)। তিনটাই একটা নতুন `DonorRanker` ব্যবহার করবে।
 
 **সতর্কতা:** Plasma-র compatibility উল্টো দিকে কাজ করে। তাই plasma ও platelet-এর জন্য আপাতত শুধু হুবহু একই গ্রুপ। চূড়ান্ত পরীক্ষা (cross-match) হাসপাতাল করবে, এটা UI-তে লেখা থাকবে।
+
+
+**অবস্থা (২০২৬-১১-২৪): ✅ সম্পন্ন**
+
+| কী হলো | কোথায় |
+|---|---|
+| তিনটা ranking path (ML, সাধারণ broadcast, SOS) এখন একই `DonorCandidateFinder` দিয়ে দাতা খোঁজে | `app/Services/Matching/` |
+| Compatibility নিয়ম config-এ: whole blood, plasma ও platelets হুবহু একই গ্রুপ; packed RBC-তে red-cell compatible, একই গ্রুপ আগে | `config/matching.php` |
+| নতুন দাতা এখন ০ নয়, prior ০.৩ থেকে শুরু করেন। আগে রাতে (quiet hours) নতুন দাতারা পুরো বাদ পড়তেন | `ResponseRateService` |
+| একই জায়গার দাতা আর হারিয়ে যান না (SQL `acos()` bug) | `DonorCandidateFinder::haversineKm()` |
+| জরুরি (emergency) অনুরোধে ক্লান্ত দাতা আর বাদ পড়েন না (`'EMERGENCY'` বনাম `'emergency'` bug) | `DonorMatchingService` |
+| লোকেশন না থাকলে দূরত্ব `9999` নয়, `null`। তখন ML ডাকা হয় না | migration + `DonorMatchingService` |
+| SOS-এর লগে `days_since_last_donation` আর সবসময় `0` নয় | `SosBloodRequestBroadcastJob` |
+| ML যত ভালো score-ই দিক, compatible গ্রুপের দাতাকে একই গ্রুপের দাতার ওপরে তুলতে পারে না | `DonorMatchingService::rankWithModel()` |
+| ২৩টা নতুন test, এর মধ্যে ৬৪টা রক্তের গ্রুপ-জোড়া স্বাধীনভাবে যাচাই | `tests/Feature/Matching/` |
+
+**যা এখনো বাকি:** UI বা notification-এ "চূড়ান্ত cross-match হাসপাতাল করবে" লেখা যোগ করা হয়নি। `config/matching.php`-এর compatibility নীতি আর prior (০.৩, ৫) আসল চিকিৎসা-নির্দেশিকা ও ডেটা দিয়ে যাচাই করতে হবে।
 
 ---
 
