@@ -57,6 +57,9 @@ return [
         'api_key' => env('ROKTODUT_ML_API_KEY', env('ROKTODUT_AI_SECRET', '')),
         'internal_secret' => env('INTERNAL_WEBHOOK_SECRET', ''),
         'nlp_placeholder_phone' => env('NLP_PLACEHOLDER_PHONE', '00000000000'),
+        // Let Telegram intake ask the LLM about fields the rules missed. Off by default:
+        // it sends the (phone-masked) message to a third party (see roktodut-ml-service/nlp/llm.py).
+        'telegram_use_llm' => (bool) env('ROKTODUT_TELEGRAM_USE_LLM', false),
     ],
 
     'gemini' => [

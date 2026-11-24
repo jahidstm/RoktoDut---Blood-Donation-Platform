@@ -2,14 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import hmac
-import json
 import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
+
+import sys
 
 from dotenv import load_dotenv
+
+# Make the local `nlp` package importable however uvicorn is started.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 # Load the parent Laravel .env file automatically
 env_path = Path(__file__).resolve().parent.parent / '.env'
@@ -18,8 +22,10 @@ load_dotenv(dotenv_path=env_path)
 import joblib
 import pandas as pd
 from fastapi import Depends, FastAPI, Header, HTTPException, status
-from groq import Groq
 from pydantic import BaseModel, ConfigDict, Field
+
+from nlp import llm as nlp_llm
+from nlp.parser import ParseResult, parse_request_text
 
 logger = logging.getLogger("roktodut.ml")
 
@@ -31,35 +37,6 @@ DEFAULT_FEATURE_COLUMNS = [
     "is_weekend",
     "historical_response_rate",
 ]
-# Groq retires models regularly (llama3-8b-8192 was shut down on 2025-08-30), so the
-# model id is meant to be overridden with GROQ_MODEL instead of editing code.
-DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b"
-
-NER_SYSTEM_PROMPT = """You are a strict medical NER extractor for blood request triage.
-Your task: extract structured fields from Bengali/English free-text blood request messages.
-
-Return ONLY valid JSON object with this exact schema:
-{
-  "blood_group": "A+|A-|B+|B-|AB+|AB-|O+|O-|unknown",
-  "urgency": "emergency|high|medium",
-  "location_text": "string",
-  "units_needed": integer >= 1,
-  "confidence_score": float between 0.0 and 1.0
-}
-
-Rules:
-1) If blood group is NOT explicitly stated, you MUST set `blood_group` to "unknown" and heavily penalize `confidence_score` (e.g., 0.1). DO NOT guess or hallucinate a blood group.
-2) urgency mapping:
-   - emergency for phrases like: emergency, urgent now, immediately, tonight critical, এক্ষুনি, ইমারজেন্সি, অতি জরুরি
-   - high for: urgent, today, within hours, জরুরি
-   - medium for all other or unclear cases.
-3) location_text should be the most specific place string available in input.
-4) units_needed must be integer; if missing assume 1.
-5) confidence_score reflects extraction confidence based on clarity/completeness. High confidence (>0.8) ONLY if blood group and location are both clearly stated.
-6) NEVER output markdown, explanations, comments, or additional keys.
-"""
-
-
 class CandidateDonor(BaseModel):
     donor_id: int = Field(..., gt=0)
     distance_km: float = Field(..., ge=0)
@@ -83,15 +60,11 @@ class RankedDonor(BaseModel):
 
 class ParseRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    text: str = Field(..., min_length=3)
-
-
-class ParsedBloodRequest(BaseModel):
-    blood_group: Literal["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "unknown"]
-    urgency: Literal["emergency", "high", "medium"]
-    location_text: str = Field(..., min_length=2, max_length=255)
-    units_needed: int = Field(..., ge=1, le=20)
-    confidence_score: float = Field(..., ge=0.0, le=1.0)
+    text: str = Field(..., min_length=3, max_length=2000)
+    use_llm: bool = Field(
+        default=False,
+        description="Ask the LLM about fields the rules could not fill. Off by default: it is slower and sends text to a third party.",
+    )
 
 
 def _resolve_expected_api_key() -> str:
@@ -125,21 +98,13 @@ def _load_model_artifact() -> tuple[Any, list[str]]:
     return model, list(feature_columns)
 
 
-def _resolve_groq_client() -> Groq | None:
-    api_key = os.getenv("GROQ_API_KEY", "").strip()
-    if api_key == "":
-        return None
-    return Groq(api_key=api_key)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     model, feature_columns = _load_model_artifact()
     app.state.model = model
     app.state.feature_columns = feature_columns
     app.state.api_key = _resolve_expected_api_key()
-    app.state.groq_client = _resolve_groq_client()
-    app.state.groq_model = os.getenv("GROQ_MODEL", DEFAULT_GROQ_MODEL).strip() or DEFAULT_GROQ_MODEL
+    app.state.llm_client = nlp_llm.client_from_env()
     yield
 
 
@@ -164,7 +129,8 @@ async def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "model_loaded": app.state.model is not None,
-        "nlp_enabled": app.state.groq_client is not None,
+        "parser": "rules",
+        "llm_enabled": app.state.llm_client is not None,
     }
 
 
@@ -206,45 +172,14 @@ async def rank_donors(
     ]
 
 
-def _call_groq_parse(client: Groq, model_name: str, text: str) -> ParsedBloodRequest:
-    completion = client.chat.completions.create(
-        model=model_name,
-        temperature=0,
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": NER_SYSTEM_PROMPT},
-            {"role": "user", "content": text},
-        ],
-    )
-
-    content = completion.choices[0].message.content if completion.choices else None
-    if not content:
-        raise RuntimeError("Groq returned empty content.")
-
-    parsed_raw = json.loads(content)
-    return ParsedBloodRequest.model_validate(parsed_raw)
-
-
-@app.post("/api/v1/parse-request", response_model=ParsedBloodRequest)
+@app.post("/api/v2/parse-request", response_model=ParseResult)
 async def parse_request(
     payload: ParseRequest,
     _: None = Depends(require_api_key),
-) -> ParsedBloodRequest:
-    client: Groq | None = app.state.groq_client
-    if client is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="GROQ_API_KEY is not configured.",
-        )
-
-    model_name: str = app.state.groq_model
-    try:
-        return await asyncio.to_thread(_call_groq_parse, client, model_name, payload.text)
-    except Exception as exc:
-        # Log the real cause server-side; do not leak provider/internal details to callers.
-        logger.exception("NLP parsing failed")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="NLP parsing failed.",
-        ) from exc
-
+) -> ParseResult:
+    """Rules first; the LLM (if configured and asked for) only fills what the rules left empty."""
+    client = app.state.llm_client if payload.use_llm else None
+    result = await asyncio.to_thread(parse_request_text, payload.text, client)
+    if payload.use_llm and app.state.llm_client is None:
+        result.warnings.append("LLM requested but not configured; rules only")
+    return result

@@ -43,8 +43,11 @@ Configure database, Redis, Firebase, OAuth, notification, and application secret
 
 ```bash
 pip install -r roktodut-ml-service/requirements.txt
-uvicorn roktodut-ml-service.main:app --host 127.0.0.1 --port 8001
+cd roktodut-ml-service
+uvicorn main:app --host 127.0.0.1 --port 8001
 ```
+
+The service reads `ROKTODUT_ML_API_KEY` from the Laravel `.env` and refuses to start without it. `GROQ_API_KEY` is optional: the request-text parser works without it (rules only). See `roktodut-ml-service/data/nlp/README.md` for how the parser was evaluated and its limits.
 
 On Windows, use the equivalent path separator for the ML requirements path. Useful repository scripts include `composer run test`, `composer run ops-check`, and `composer run smoke-check`.
 
