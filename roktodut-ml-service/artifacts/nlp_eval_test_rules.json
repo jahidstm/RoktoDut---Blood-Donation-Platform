@@ -1,0 +1,21 @@
+{
+  "rows": 80,
+  "accuracy": {
+    "blood_group": 1.0,
+    "units": 1.0,
+    "component_type": 1.0,
+    "urgency": 1.0,
+    "contact_number": 1.0
+  },
+  "blood_group": {
+    "correct": 72,
+    "wrong": 0,
+    "abstained": 0,
+    "false_positive": 0,
+    "true_null": 8,
+    "precision": 1.0,
+    "recall": 1.0
+  },
+  "split": "test",
+  "llm": false
+}

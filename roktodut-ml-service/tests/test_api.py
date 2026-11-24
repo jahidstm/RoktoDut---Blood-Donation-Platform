@@ -19,7 +19,8 @@ def test_health_needs_no_key(client):
     body = r.json()
     assert body["status"] == "ok"
     assert body["model_loaded"] is True
-    assert body["nlp_enabled"] is False  # no GROQ_API_KEY in tests
+    assert body["parser"] == "rules"
+    assert body["llm_enabled"] is False  # no GROQ_API_KEY in tests
 
 
 def test_missing_key_header_is_rejected(client):
@@ -64,9 +65,34 @@ def test_ranking_is_sorted_and_ranks_are_consecutive(client, auth):
     assert {x["donor_id"] for x in rows} == {1, 2, 3}
 
 
-def test_parse_request_without_groq_key_is_503(client, auth):
-    r = client.post("/api/v1/parse-request", json={"text": "O+ blood needed"}, headers=auth)
-    assert r.status_code == 503
+def test_parse_v2_works_without_any_llm(client, auth):
+    r = client.post(
+        "/api/v2/parse-request",
+        json={"text": "জরুরি ভিত্তিতে A+ রক্ত, ২ ব্যাগ, ঢাকা মেডিকেল, ০১৭০০০০০০০১"},
+        headers=auth,
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert (body["blood_group"], body["units"], body["urgency"], body["contact_number"]) == ("A+", 2, "urgent", "01700000001")
+    assert body["source"]["blood_group"] == "rules"
+    assert body["llm_used"] is False
+
+
+def test_parse_v2_says_so_when_llm_is_requested_but_missing(client, auth):
+    r = client.post("/api/v2/parse-request", json={"text": "রক্ত লাগবে", "use_llm": True}, headers=auth)
+    assert r.status_code == 200
+    assert "LLM requested but not configured; rules only" in r.json()["warnings"]
+
+
+def test_parse_v2_needs_the_key_and_valid_input(client, auth):
+    assert client.post("/api/v2/parse-request", json={"text": "A+ blood"}, headers={"X-API-Key": "wrong"}).status_code == 401
+    assert client.post("/api/v2/parse-request", json={"text": "ab"}, headers=auth).status_code == 422
+    assert client.post("/api/v2/parse-request", json={"text": "x" * 2001}, headers=auth).status_code == 422
+    assert client.post("/api/v2/parse-request", json={"text": "A+ blood", "extra": 1}, headers=auth).status_code == 422
+
+
+def test_old_v1_endpoint_is_gone(client, auth):
+    assert client.post("/api/v1/parse-request", json={"text": "A+ blood"}, headers=auth).status_code == 404
 
 
 def test_service_refuses_to_start_without_a_key(monkeypatch):
