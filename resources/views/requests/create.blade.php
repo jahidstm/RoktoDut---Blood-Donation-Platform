@@ -49,6 +49,8 @@
         <form method="POST" action="{{ route('requests.store') }}" class="space-y-6" x-data="{ isSubmitting: false }" @submit="if(isSubmitting) { $event.preventDefault(); return false; } isSubmitting = true;">
             @csrf
 
+            @include('requests.partials.fill-from-message')
+
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                     <label class="text-sm font-extrabold text-slate-800">রোগীর নাম</label>
@@ -85,6 +87,7 @@
                 {{-- 🏥 Hospital Autocomplete (Alpine.js) --}}
                 <div
                     x-data="hospitalAutocomplete({{ old('hospital_id') ?? 'null' }}, '{{ old('hospital_display', '') }}')"
+                    @rd-set-hospital.window="select($event.detail)"
                     class="relative"
                 >
                     <label class="text-sm font-extrabold text-slate-800">

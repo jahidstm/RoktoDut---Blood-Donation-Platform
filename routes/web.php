@@ -224,6 +224,10 @@ Route::post('/reports', [ReportController::class, 'store'])
 
 Route::get('/requests/create', [BloodRequestController::class, 'create'])
     ->name('requests.create');
+// Paste a message, get form suggestions (guests can create requests too, so no auth; throttled).
+Route::post('/requests/parse-text', [\App\Http\Controllers\RequestTextController::class, 'parse'])
+    ->middleware('throttle:20,1')
+    ->name('requests.parse-text');
 Route::post('/requests', [BloodRequestController::class, 'store'])
     ->middleware('throttle:requests-store')
     ->name('requests.store');

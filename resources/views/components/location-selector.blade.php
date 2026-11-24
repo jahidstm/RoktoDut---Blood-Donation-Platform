@@ -118,6 +118,14 @@
         }
 
         divSelect.addEventListener('change', function() { loadDistricts(this.value); });
+
+        // Lets other scripts (e.g. "fill from message" on the request form) set the location.
+        document.addEventListener('rd:set-location', function (e) {
+            const d = (e && e.detail) || {};
+            if (!d.division_id) return;
+            divSelect.value = String(d.division_id);
+            loadDistricts(d.division_id, d.district_id || null);
+        });
         distSelect.addEventListener('change', function() { loadUpazilas(this.value); });
 
         // পেজ লোড বা ভ্যালিডেশন ফেইল হলে ডেটা রি-পপুলেট করা
