@@ -48,6 +48,7 @@ class BloodRequest extends Model
         'is_hidden',
         'is_super_critical',
         'priority_score',
+        'is_demo',
     ];
 
     protected function casts(): array
@@ -65,6 +66,7 @@ class BloodRequest extends Model
             'is_hidden'       => 'boolean',
             'is_super_critical' => 'boolean',
             'priority_score' => 'integer',
+            'is_demo' => 'boolean',
         ];
     }
 
