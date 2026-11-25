@@ -112,24 +112,22 @@ class SpatialAnalyticsService
      *   - Client auto-refresh: 3 minutes
      *   → ক্লায়েন্ট যখন hit করে, তখনই cache expire হয় → সত্যিকারের fresh data।
      */
-    public function getHeatmapData(string $dateRange = 'all_time', ?string $bloodGroup = null): array
+    public function getHeatmapData(string $dateRange = 'all_time', ?string $bloodGroup = null, bool $demo = false): array
     {
         // Public route: cache the all_time result for exactly 3 minutes
         if ($dateRange === 'all_time') {
-            $cacheKey = $bloodGroup
-                ? "spatial_heatmap_data_{$bloodGroup}"
-                : 'spatial_heatmap_data';
+            $cacheKey = 'spatial_heatmap_data_v2'.($demo ? '_demo' : '').($bloodGroup ? "_{$bloodGroup}" : '');
 
-            return Cache::remember($cacheKey, now()->addMinutes(3), function () use ($bloodGroup) {
-                return $this->computeHeatmapData('all_time', $bloodGroup);
+            return Cache::remember($cacheKey, now()->addMinutes(3), function () use ($bloodGroup, $demo) {
+                return $this->computeHeatmapData('all_time', $bloodGroup, $demo);
             });
         }
 
         // Admin filtered views: skip cache — data must be fresh
-        return $this->computeHeatmapData($dateRange, $bloodGroup);
+        return $this->computeHeatmapData($dateRange, $bloodGroup, $demo);
     }
 
-    private function computeHeatmapData(string $dateRange = 'all_time', ?string $bloodGroup = null): array
+    private function computeHeatmapData(string $dateRange = 'all_time', ?string $bloodGroup = null, bool $demo = false): array
     {
         // ── 1. Date range filter ──────────────────────────────────────────
         $from = match ($dateRange) {
@@ -141,7 +139,12 @@ class SpatialAnalyticsService
 
         // ── 2. Blood group breakdown per district ─────────────────────────
         // Uses composite index: idx_br_heatmap (district_id, status, blood_group)
-        $bgQuery = BloodRequest::whereIn('status', ['pending', 'in_progress'])
+        // Open requests. 'approved' is what older code called in_progress (see the ai_dispatch
+        // migration); leaving it out hid most open demand from the map. Hidden (spam) and
+        // synthetic demo rows are kept apart from real demand.
+        $bgQuery = BloodRequest::whereIn('blood_requests.status', ['pending', 'approved', 'in_progress'])
+            ->where(fn ($q) => $q->where('blood_requests.is_hidden', false)->orWhereNull('blood_requests.is_hidden'))
+            ->where('blood_requests.is_demo', $demo)
             ->join('districts', 'blood_requests.district_id', '=', 'districts.id')
             ->selectRaw('districts.name as district_name, blood_group, COUNT(*) as cnt')
             ->groupBy('districts.name', 'blood_group');

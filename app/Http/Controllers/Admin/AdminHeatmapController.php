@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Services\SpatialAnalyticsService;
+use App\Services\Analytics\DemandAnalytics;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -16,18 +18,42 @@ class AdminHeatmapController extends Controller
 
     public function index(Request $request)
     {
-        $dateRange   = $this->resolveRange($request);
-        $bloodGroup  = $this->resolveBloodGroup($request);
-        $heatmapData = $this->spatialService->getHeatmapData($dateRange, $bloodGroup);
+        [$demo, $autoDemo] = $this->resolveSource($request);
 
         return view('admin.analytics.heatmap', [
-            'heatmapData'  => $heatmapData,
-            'totalDemand'  => collect($heatmapData)->sum('demand'),
-            'criticalCount'=> collect($heatmapData)->filter(fn($d) => $d['crs'] > 50)->count(),
-            'generatedAt'  => now()->format('d M Y, h:i A'),
-            'dateRange'    => $dateRange,
-            'bloodGroup'   => $bloodGroup,
+            'generatedAt' => now()->format('d M Y, h:i A'),
+            'dateRange'   => $this->resolveRange($request),
+            'bloodGroup'  => $this->resolveBloodGroup($request),
+            'source'      => $demo ? 'demo' : 'real',
+            'autoDemo'    => $autoDemo,
         ]);
+    }
+
+    /** JSON for the admin map. Unlike the public API it can return the synthetic demo data. */
+    public function data(Request $request): JsonResponse
+    {
+        [$demo] = $this->resolveSource($request);
+
+        return response()->json($this->spatialService->getHeatmapData(
+            $this->resolveRange($request),
+            $this->resolveBloodGroup($request),
+            $demo,
+        ));
+    }
+
+    /** @return array{0: bool, 1: bool} [show demo data?, was that chosen automatically?] */
+    private function resolveSource(Request $request): array
+    {
+        $source = $request->query('source');
+        if ($source === 'demo' || $source === 'real') {
+            return [$source === 'demo', false];
+        }
+
+        $analytics = app(DemandAnalytics::class);
+        $thin = $analytics->countRequests(DemandAnalytics::SOURCE_REAL) < (int) config('analytics.min_real_requests', 30);
+        $auto = $thin && $analytics->countRequests(DemandAnalytics::SOURCE_DEMO) > 0;
+
+        return [$auto, $auto];
     }
 
     /**
@@ -38,7 +64,8 @@ class AdminHeatmapController extends Controller
     {
         $dateRange   = $this->resolveRange($request);
         $bloodGroup  = $this->resolveBloodGroup($request);
-        $heatmapData = $this->spatialService->getHeatmapData($dateRange, $bloodGroup);
+        [$demo]      = $this->resolveSource($request);
+        $heatmapData = $this->spatialService->getHeatmapData($dateRange, $bloodGroup, $demo);
         $districtMap = $this->spatialService->getDistrictMap();   // BN => EN
         $enToBn      = array_flip($districtMap);                  // EN => BN
 
