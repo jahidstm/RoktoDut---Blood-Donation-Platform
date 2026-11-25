@@ -14,6 +14,25 @@ class BloodRequest extends Model
 {
     use HasFactory;
 
+    /**
+     * Every new request is triaged by the risk rules. This only ever adds a row to the
+     * admin review queue; a failure here must never stop someone asking for blood.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (BloodRequest $request) {
+            if ($request->status === 'nlp_pending') {
+                return;
+            }
+
+            try {
+                app(\App\Services\Risk\RequestRiskService::class)->evaluate($request);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        });
+    }
+
     protected $fillable = [
         'requested_by',
         'guest_token',

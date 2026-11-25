@@ -147,3 +147,9 @@ Consequences:
 7. Log rows are created by `DispatchEmergencyAlertsJob` and `CheckAndCascadeRequestJob`. The smart-broadcast and SOS jobs both hand off to `DispatchEmergencyAlertsJob`, so every dispatch path is covered (verified by reading the dispatch chain).
 8. `nid_number` is stored in plaintext.
 9. `health_records` is entirely self-reported.
+
+## request_risk_flags (added with Feature 5)
+
+One row per blood request that the rules in `config/risk.php` scored at or above the review threshold.
+`signals` holds the reasons shown to the admin. `status` is `open`, `dismissed` (admin: genuine) or `confirmed`
+(admin: spam). The last two are human labels. No personal data beyond the request id; sensitivity: internal.

@@ -40,6 +40,7 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\SpamRadarController;
+use App\Http\Controllers\Admin\RequestRiskController;
 use App\Http\Controllers\Admin\AdminHeatmapController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\PwaController;
@@ -433,6 +434,9 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin/spam-radar', [SpamRadarController::class, 'index'])->name('admin.spam-radar.index');
     Route::post('/admin/spam-radar/{bloodRequest}/approve', [SpamRadarController::class, 'approveStrike'])->name('admin.spam-radar.approve');
     Route::post('/admin/spam-radar/{bloodRequest}/reject', [SpamRadarController::class, 'rejectReports'])->name('admin.spam-radar.reject');
+    Route::get('/admin/risk-queue', [RequestRiskController::class, 'index'])->name('admin.risk.index');
+    Route::post('/admin/risk-queue/{flag}/dismiss', [RequestRiskController::class, 'dismiss'])->name('admin.risk.dismiss');
+    Route::post('/admin/risk-queue/{flag}/confirm', [RequestRiskController::class, 'confirm'])->name('admin.risk.confirm');
 
     Route::prefix('admin/gamification')->name('admin.gamification.')->group(function () {
         Route::get('/',                          [GamificationGovernanceController::class, 'index'])->name('index');
