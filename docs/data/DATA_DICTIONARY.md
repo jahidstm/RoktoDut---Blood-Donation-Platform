@@ -53,7 +53,7 @@ erDiagram
 
 | Column | Class | Notes |
 |---|---|---|
-| `id`, `status`, `urgency`, `component_type`, `is_super_critical`, `priority_score`, `created_at`, `updated_at`, `needed_at` | internal | `status`: pending, in_progress, fulfilled, expired, (more values exist, see `UrgencyLevel` and controllers) |
+| `id`, `status`, `urgency`, `component_type`, `is_super_critical`, `priority_score`, `is_demo` (true = synthetic row from `demo:generate-demand`), `created_at`, `updated_at`, `needed_at` | internal | `status`: pending, in_progress, fulfilled, expired, (more values exist, see `UrgencyLevel` and controllers) |
 | `blood_group`, `bags_needed`, `units_needed` | internal | **Both unit columns exist and mean the same thing.** Known debt |
 | `division_id`, `district_id`, `upazila_id`, `hospital_id` | internal | Safe geography |
 | `latitude`, `longitude`, `address`, `location_text` | PII-ish | Often a hospital, but can be a home address |

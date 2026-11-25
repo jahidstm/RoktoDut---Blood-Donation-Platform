@@ -5,91 +5,39 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\BloodRequest;
 use App\Models\User;
-use App\Support\BanglaDate;
+use App\Services\Analytics\DemandAnalytics;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AnalyticsController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, DemandAnalytics $analytics)
     {
-        $analytics = Cache::remember('admin.analytics.dashboard.v1', now()->addMinutes(10), function () {
-            $totalDonors = User::query()
-                ->where('role', 'donor')
-                ->count();
+        $requested = $request->query('source');
+        $autoDemo = false;
 
-            $totalRecipients = User::query()
-                ->where('role', 'recipient')
-                ->count();
-
-            $activeRequests = BloodRequest::query()
-                ->where('status', 'pending')
-                ->count();
-
-            $successfulRequests = BloodRequest::query()
-                ->where('status', 'fulfilled')
-                ->count();
-
-            $bloodGroupRows = User::query()
-                ->select('blood_group', DB::raw('COUNT(*) as total'))
-                ->where('role', 'donor')
-                ->whereNotNull('blood_group')
-                ->groupBy('blood_group')
-                ->orderBy('blood_group')
-                ->get();
-
-            $bloodGroupDistribution = [
-                'labels' => $bloodGroupRows->pluck('blood_group')->all(),
-                'values' => $bloodGroupRows->pluck('total')->map(fn ($value) => (int) $value)->all(),
-            ];
-
-            $months = collect(range(11, 0, -1))
-                ->map(fn ($i) => now()->startOfMonth()->subMonths($i))
-                ->push(now()->startOfMonth())
-                ->values();
-
-            $monthlySuccessRows = DB::table('blood_request_responses')
-                ->selectRaw("DATE_FORMAT(fulfilled_at, '%Y-%m') as ym, COUNT(DISTINCT blood_request_id) as total")
-                ->whereNotNull('fulfilled_at')
-                ->where('fulfilled_at', '>=', now()->startOfMonth()->subMonths(11))
-                ->groupBy('ym')
-                ->pluck('total', 'ym');
-
-            $bnMonths = [
-                1 => 'জানুয়ারি', 2 => 'ফেব্রুয়ারি', 3 => 'মার্চ', 4 => 'এপ্রিল',
-                5 => 'মে', 6 => 'জুন', 7 => 'জুলাই', 8 => 'আগস্ট',
-                9 => 'সেপ্টেম্বর', 10 => 'অক্টোবর', 11 => 'নভেম্বর', 12 => 'ডিসেম্বর',
-            ];
-
-            $monthlyTrend = [
-                'labels' => [],
-                'values' => [],
-                'keys' => [],
-            ];
-
-            foreach ($months as $month) {
-                $key = $month->format('Y-m');
-                $monthlyTrend['keys'][] = $key;
-                $monthlyTrend['labels'][] = $bnMonths[(int) $month->format('n')] . ' ' . BanglaDate::digits($month->format('Y'));
-                $monthlyTrend['values'][] = (int) ($monthlySuccessRows[$key] ?? 0);
+        if (in_array($requested, [DemandAnalytics::SOURCE_REAL, DemandAnalytics::SOURCE_DEMO, DemandAnalytics::SOURCE_ALL], true)) {
+            $source = $requested;
+        } else {
+            $source = DemandAnalytics::SOURCE_REAL;
+            $tooFew = $analytics->countRequests(DemandAnalytics::SOURCE_REAL) < (int) config('analytics.min_real_requests', 30);
+            if ($tooFew && $analytics->countRequests(DemandAnalytics::SOURCE_DEMO) > 0) {
+                $source = DemandAnalytics::SOURCE_DEMO;
+                $autoDemo = true;
             }
+        }
 
-            return [
-                'summary' => [
-                    'total_donors' => $totalDonors,
-                    'total_recipients' => $totalRecipients,
-                    'active_requests' => $activeRequests,
-                    'successful_requests' => $successfulRequests,
-                    'lives_saved_estimate' => $successfulRequests * 3,
-                ],
-                'blood_group_distribution' => $bloodGroupDistribution,
-                'monthly_success_trend' => $monthlyTrend,
-            ];
-        });
+        $data = Cache::remember("admin.analytics.demand.v2.{$source}", now()->addMinutes(10), fn () => $analytics->compute($source));
 
-        return view('admin.analytics.index', compact('analytics'));
+        return view('admin.analytics.index', [
+            'data' => $data,
+            'source' => $source,
+            'autoDemo' => $autoDemo,
+            'realCount' => $analytics->countRequests(DemandAnalytics::SOURCE_REAL),
+            'minReal' => (int) config('analytics.min_real_requests', 30),
+            'totalDonors' => User::query()->where('is_donor', true)->count(),
+        ]);
     }
 
     public function export(Request $request): StreamedResponse
