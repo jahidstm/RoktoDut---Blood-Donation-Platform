@@ -355,6 +355,18 @@
                 স্প্যাম রাডার
             </a>
 
+            @php
+                try { $openRiskFlags = \App\Models\RequestRiskFlag::where('status', 'open')->count(); } catch (\Throwable $e) { $openRiskFlags = 0; }
+            @endphp
+            <a href="{{ route('admin.risk.index') }}"
+               class="admin-nav-item {{ request()->routeIs('admin.risk.*') ? 'active' : '' }}" data-tab="risk-queue">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h18M6 9h12M10 14h4M11 19h2"/></svg>
+                সন্দেহজনক রিকোয়েস্ট
+                @if($openRiskFlags > 0)
+                    <span class="admin-nav-badge">{{ $openRiskFlags }}</span>
+                @endif
+            </a>
+
             <a href="{{ route('admin.gamification.index') }}"
                class="admin-nav-item {{ request()->routeIs('admin.gamification.*') ? 'active' : '' }}" data-tab="gamification">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>

@@ -82,7 +82,7 @@ class RegisteredUserController extends Controller
         if ($isDonor) {
             try {
                 \Illuminate\Support\Facades\Redis::zadd('donor_fatigue', 0, $user->id);
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::warning('Redis init failed for new donor: ' . $e->getMessage());
             }
         }

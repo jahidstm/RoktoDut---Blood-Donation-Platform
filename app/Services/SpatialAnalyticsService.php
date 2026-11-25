@@ -173,7 +173,7 @@ class SpatialAnalyticsService
         // ── 4. Pre-computed District Avg DFI — O(1) Redis Hash read ───────
         try {
             $avgDfiScores = Redis::hgetall('district_avg_dfi');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::warning('[Heatmap] Redis unavailable for DFI fetch: ' . $e->getMessage());
             $avgDfiScores = [];
         }
