@@ -18,7 +18,7 @@ def test_health_needs_no_key(client):
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "ok"
-    assert body["model_loaded"] is True
+    assert body["ranker"]["servable"] is True
     assert body["parser"] == "rules"
     assert body["llm_enabled"] is False  # no GROQ_API_KEY in tests
 
@@ -103,3 +103,49 @@ def test_service_refuses_to_start_without_a_key(monkeypatch):
     with pytest.raises(RuntimeError, match="API key"):
         with TestClient(main.app):
             pass
+
+
+def _save(path, **fields):
+    import joblib
+    from sklearn.dummy import DummyClassifier
+
+    from ranking.features import MODEL_FEATURES
+
+    model = DummyClassifier(strategy="prior").fit([[0] * len(MODEL_FEATURES)] * 2, [0, 1])
+    joblib.dump({"model": model, "feature_columns": MODEL_FEATURES, **fields}, path)
+    return path
+
+
+def test_unpromoted_model_is_never_served(make_client, auth, tmp_path):
+    path = _save(tmp_path / "m.joblib", promoted=False, data_source="real")
+    with make_client(path, allow=True) as c:
+        assert c.get("/health").json()["ranker"]["servable"] is False
+        r = c.post("/api/v1/rank-donors", json={"candidate_donors": [donor(1, 2)]}, headers=auth)
+        assert r.status_code == 503
+        assert "did not beat" in r.json()["detail"]
+
+
+def test_simulated_model_needs_the_demo_flag(make_client, auth, tmp_path):
+    path = _save(tmp_path / "m.joblib", promoted=True, data_source="simulated-realistic")
+    with make_client(path, allow=False) as c:
+        r = c.post("/api/v1/rank-donors", json={"candidate_donors": [donor(1, 2)]}, headers=auth)
+        assert r.status_code == 503
+        assert "simulated" in r.json()["detail"]
+    with make_client(path, allow=True) as c:
+        assert c.post("/api/v1/rank-donors", json={"candidate_donors": [donor(1, 2)]}, headers=auth).status_code == 200
+
+
+def test_promoted_real_model_is_served_and_old_or_missing_files_are_not(make_client, auth, tmp_path):
+    with make_client(_save(tmp_path / "real.joblib", promoted=True, data_source="real")) as c:
+        assert c.post("/api/v1/rank-donors", json={"candidate_donors": [donor(1, 2)]}, headers=auth).status_code == 200
+
+    import joblib
+
+    joblib.dump({"model": None}, tmp_path / "old.joblib")
+    with make_client(tmp_path / "old.joblib", allow=True) as c:
+        assert "old model format" in c.get("/health").json()["ranker"]["reason"]
+
+    with make_client(tmp_path / "missing.joblib", allow=True) as c:
+        assert c.get("/health").json()["ranker"]["reason"].startswith("no model file")
+        # The parser keeps working without any ranker.
+        assert c.post("/api/v2/parse-request", json={"text": "A+ blood lagbe"}, headers=auth).status_code == 200
