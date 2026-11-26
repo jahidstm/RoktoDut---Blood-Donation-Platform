@@ -26,17 +26,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from nlp import llm as nlp_llm
 from nlp.parser import ParseResult, parse_request_text
+from ranking.features import model_matrix
 
 logger = logging.getLogger("roktodut.ml")
 
-MODEL_PATH = Path(__file__).resolve().parent / "models" / "donor_ranker.joblib"
-DEFAULT_FEATURE_COLUMNS = [
-    "distance_km",
-    "days_since_last_donation",
-    "temporal_hour",
-    "is_weekend",
-    "historical_response_rate",
-]
+DEFAULT_MODEL_PATH = Path(__file__).resolve().parent / "models" / "donor_ranker.joblib"
+
+
 class CandidateDonor(BaseModel):
     donor_id: int = Field(..., gt=0)
     distance_km: float = Field(..., ge=0)
@@ -80,29 +76,51 @@ def _resolve_expected_api_key() -> str:
     )
 
 
-def _load_model_artifact() -> tuple[Any, list[str]]:
-    if not MODEL_PATH.exists():
-        raise RuntimeError(f"Model not found: {MODEL_PATH}")
+def _env_flag(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in ("1", "true", "yes")
 
-    artifact = joblib.load(MODEL_PATH)
-    if isinstance(artifact, dict):
-        model = artifact.get("model")
-        feature_columns = artifact.get("feature_columns", DEFAULT_FEATURE_COLUMNS)
+
+def _load_ranker() -> dict[str, Any]:
+    """Load the ranker artifact and decide whether it may be used.
+
+    A model is served only if scripts/train_ranker.py promoted it (it beat the rule-based
+    rankings on later, unseen requests) AND it was trained on real data. A model trained on
+    simulated data is served only when ROKTODUT_ALLOW_SIMULATED_MODEL=true (demos). In every
+    other case /api/v1/rank-donors answers 503 and Laravel keeps its rule-based order.
+    """
+    path = Path(os.getenv("ROKTODUT_RANKER_PATH", "") or DEFAULT_MODEL_PATH)
+    state: dict[str, Any] = {"model": None, "servable": False, "reason": "", "info": {}}
+
+    if not path.exists():
+        state["reason"] = "no model file; run scripts/train_ranker.py"
+        return state
+
+    artifact = joblib.load(path)
+    if not isinstance(artifact, dict) or "promoted" not in artifact or "feature_columns" not in artifact:
+        state["reason"] = "old model format without an evaluation; retrain with scripts/train_ranker.py"
+        return state
+
+    state["model"] = artifact["model"]
+    state["info"] = {
+        "model_name": artifact.get("model_name"),
+        "data_source": artifact.get("data_source"),
+        "trained_at_utc": artifact.get("trained_at_utc"),
+        "promoted": bool(artifact["promoted"]),
+    }
+
+    if not artifact["promoted"]:
+        state["reason"] = "model did not beat the rule-based ranking; rules are used"
+    elif artifact.get("data_source") != "real" and not _env_flag("ROKTODUT_ALLOW_SIMULATED_MODEL"):
+        state["reason"] = "model was trained on simulated data; set ROKTODUT_ALLOW_SIMULATED_MODEL=true to use it in a demo"
     else:
-        model = artifact
-        feature_columns = DEFAULT_FEATURE_COLUMNS
+        state["servable"] = True
 
-    if model is None:
-        raise RuntimeError("Invalid model artifact: model is missing.")
-
-    return model, list(feature_columns)
+    return state
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    model, feature_columns = _load_model_artifact()
-    app.state.model = model
-    app.state.feature_columns = feature_columns
+    app.state.ranker = _load_ranker()
     app.state.api_key = _resolve_expected_api_key()
     app.state.llm_client = nlp_llm.client_from_env()
     yield
@@ -128,7 +146,11 @@ def require_api_key(x_api_key: str = Header(..., alias="X-API-Key")) -> None:
 async def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "model_loaded": app.state.model is not None,
+        "ranker": {
+            "servable": app.state.ranker["servable"],
+            "reason": app.state.ranker["reason"],
+            **app.state.ranker["info"],
+        },
         "parser": "rules",
         "llm_enabled": app.state.llm_client is not None,
     }
@@ -139,22 +161,21 @@ async def rank_donors(
     payload: RankingRequest,
     _: None = Depends(require_api_key),
 ) -> list[RankedDonor]:
-    model = app.state.model
-    feature_columns: list[str] = app.state.feature_columns
+    ranker = app.state.ranker
+    if not ranker["servable"]:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=ranker["reason"])
 
-    rows = [
+    raw = pd.DataFrame([
         {
-            "distance_km": donor.distance_km,
-            "days_since_last_donation": donor.days_since_last_donation,
-            "temporal_hour": donor.temporal_hour,
-            "is_weekend": int(donor.is_weekend),
-            "historical_response_rate": donor.historical_response_rate,
+            "distance_km": d.distance_km,
+            "days_since_last_donation": d.days_since_last_donation,
+            "temporal_hour": d.temporal_hour,
+            "is_weekend": int(d.is_weekend),
+            "historical_response_rate": d.historical_response_rate,
         }
-        for donor in payload.candidate_donors
-    ]
-
-    features_df = pd.DataFrame(rows, columns=feature_columns)
-    probabilities = model.predict_proba(features_df)[:, 1]
+        for d in payload.candidate_donors
+    ])
+    probabilities = ranker["model"].predict_proba(model_matrix(raw))[:, 1]
 
     ranked = sorted(
         zip(payload.candidate_donors, probabilities, strict=True),

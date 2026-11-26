@@ -168,6 +168,19 @@ class DispatchPathsTest extends MatchingTestCase
         $this->assertSame([$near->id, $far->id, $universal->id], $ranked->pluck('donor_id')->all());
     }
 
+    public function test_no_promoted_model_means_rule_order(): void
+    {
+        // The ML service answers 503 when no model passed its promotion gate.
+        Http::fake(['ml.test/*' => Http::response(['detail' => 'model did not beat the rule-based ranking; rules are used'], 503)]);
+        $far = $this->donor('A+', $this->north(12));
+        $near = $this->donor('A+', $this->north(4));
+
+        $ranked = app(DonorMatchingService::class)->rankDonors($this->request('A+'), limit: 2);
+
+        $this->assertSame([$near->id, $far->id], $ranked->pluck('donor_id')->all());
+        $this->assertSame([0.0, 0.0], $ranked->pluck('probability_score')->all());
+    }
+
     public function test_emergency_requests_do_not_exclude_fatigued_donors(): void
     {
         Http::fake(['ml.test/*' => Http::response('down', 500)]);

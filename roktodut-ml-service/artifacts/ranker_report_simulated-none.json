@@ -1,0 +1,85 @@
+{
+  "data_source": "simulated-none",
+  "trained_at_utc": "2026-11-26T04:40:38+00:00",
+  "rows": {
+    "labelled": 22626,
+    "train": 13771,
+    "validation": 3372,
+    "test": 5483
+  },
+  "positive_rate": 0.1989,
+  "validation_ndcg@10": {
+    "logistic_regression": 0.5298,
+    "random_forest": 0.529,
+    "lightgbm": 0.5144
+  },
+  "chosen_model": "logistic_regression",
+  "test_requests_with_accepter": 457,
+  "test_ranking": {
+    "model": {
+      "hit@3": 0.5449,
+      "hit@5": 0.7702,
+      "ndcg@10": 0.5398,
+      "mrr": 0.4577
+    },
+    "random": {
+      "hit@3": 0.5492,
+      "hit@5": 0.733,
+      "ndcg@10": 0.5284,
+      "mrr": 0.4355
+    },
+    "nearest_first": {
+      "hit@3": 0.5536,
+      "hit@5": 0.7462,
+      "ndcg@10": 0.5404,
+      "mrr": 0.4695
+    },
+    "response_rate_first": {
+      "hit@3": 0.5317,
+      "hit@5": 0.7615,
+      "ndcg@10": 0.5228,
+      "mrr": 0.4361
+    },
+    "current_rules": {
+      "hit@3": 0.5317,
+      "hit@5": 0.7615,
+      "ndcg@10": 0.524,
+      "mrr": 0.4282
+    }
+  },
+  "test_classification": {
+    "roc_auc": 0.5055,
+    "average_precision": 0.2033,
+    "brier": 0.1598,
+    "base_rate": 0.1997
+  },
+  "calibration": [
+    {
+      "bin": "0.1-0.2",
+      "n": 2642,
+      "mean_predicted": 0.1949,
+      "observed_rate": 0.1983
+    },
+    {
+      "bin": "0.2-0.3",
+      "n": 2841,
+      "mean_predicted": 0.2071,
+      "observed_rate": 0.201
+    }
+  ],
+  "gate": {
+    "compared_with": "nearest_first",
+    "ndcg@10_gain": {
+      "mean_diff": -0.0007,
+      "ci_low": -0.0188,
+      "ci_high": 0.017
+    },
+    "min_gain": 0.01,
+    "min_test_requests": 50,
+    "promoted": false,
+    "reasons_not_promoted": [
+      "NDCG@10 gain over nearest_first is -0.0007 (need >= 0.01)",
+      "95% interval of the gain includes zero (-0.0188 to 0.017)"
+    ]
+  }
+}
