@@ -13,4 +13,7 @@ return [
     // With fewer real requests than this the dashboard opens on demo data (with a banner)
     // instead of a near-empty page. The admin can switch back with ?source=real.
     'min_real_requests' => 30,
+
+    // Written by roktodut-ml-service/scripts/forecast_demand.py (see docs/ml/DEMAND_FORECAST.md).
+    'forecast_path' => storage_path('app/forecast/latest.json'),
 ];
