@@ -94,6 +94,16 @@
                             <span x-text="msg.text"></span>
                         </div>
 
+                        {{-- Where the answer came from --}}
+                        <template x-if="!msg.isUser && msg.sources && msg.sources.length">
+                            <div class="mt-1 px-1 text-[10px] text-slate-500 max-w-[85%]">
+                                <span class="font-bold">সূত্র:</span>
+                                <template x-for="(src, i) in msg.sources" :key="i">
+                                    <a :href="src.url || '{{ route('faq') }}'" class="underline hover:text-red-600 mr-1.5" x-text="src.title"></a>
+                                </template>
+                            </div>
+                        </template>
+
                         {{-- Action button (only on bot messages) --}}
                         <template x-if="!msg.isUser && msg.action">
                             <a :href="msg.action.url"
@@ -276,12 +286,14 @@ document.addEventListener('alpine:init', () => {
             .then(data => {
                 const reply  = this.normalize(data.reply || 'দুঃখিত, উত্তর পাওয়া যায়নি।');
                 const action = data.action ?? null;
+                const sources = Array.isArray(data.sources) ? data.sources : [];
 
                 this.messages.push({
                     id: Date.now() + Math.random(),
                     text: reply,
                     isUser: false,
                     action: action,
+                    sources: sources,
                     time: this.timeLabel(),
                 });
 
