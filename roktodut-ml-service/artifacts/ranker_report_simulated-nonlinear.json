@@ -1,6 +1,6 @@
 {
   "data_source": "simulated-nonlinear",
-  "trained_at_utc": "2026-11-26T04:40:59+00:00",
+  "trained_at_utc": "2026-11-26T04:50:56+00:00",
   "rows": {
     "labelled": 34583,
     "train": 20720,

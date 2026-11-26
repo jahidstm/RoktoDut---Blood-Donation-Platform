@@ -1,6 +1,6 @@
 # Donor response model report (simulated-nonlinear data)
 
-Trained 2026-11-26T04:40:59+00:00. Labelled rows: 34583 (train 20720, validation 5219, test 8644). Acceptance rate 8.7%.
+Trained 2026-11-26T04:50:56+00:00. Labelled rows: 34583 (train 20720, validation 5219, test 8644). Acceptance rate 8.7%.
 
 > **Simulated data.** These numbers describe the simulator's assumptions, not real donors. See `ranking/simulate.py`.
 
