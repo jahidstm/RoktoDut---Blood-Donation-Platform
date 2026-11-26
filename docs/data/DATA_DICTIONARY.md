@@ -140,7 +140,7 @@ Consequences:
 3. `donations.district` is free text; other tables use ids.
 4. `blood_request_responses.status` has no enum and mixes donor-side and requester-side values.
 5. ~~`historical_response_rate` divided by all rows including `pending`, and new donors started at 0.~~ Fixed in Feature 1: `ResponseRateService` ignores `pending` and smooths toward a prior (`config/matching.php`). Rows logged before that fix still hold the old values.
-5b. For model training, only `accepted`, `declined` and `ignored` rows are labelled outcomes. `pending` (unknown yet) and `moot` (neutral) are censored and must be excluded. `scripts/train_model.py` still treats everything that is not `accepted` as negative; fix that in Feature 6.
+5b. For model training, only `accepted`, `declined` and `ignored` rows are labelled outcomes. `pending` (unknown yet) and `moot` (neutral) are censored and must be excluded. Fixed in Feature 6: `ranking/features.py` drops them, and recomputes the response rate point in time instead of trusting the stored `historical_response_rate` column.
 5c. Donors rarely have coordinates (none in the dev database). Before 2026-11-24 a request with a map pin found zero such donors, because only donors with coordinates were considered. Now a request with a pin also gets same-district donors with an unknown distance, scored as `matching.assumed_distance_km`.
 5a. `distance_km` is now nullable; NULL means the request had no coordinates. Older rows with 9999 were converted to NULL by migration.
 6. `donor_response_logs.donor_id` uses `cascadeOnDelete`: deleting a user deletes their training rows.
