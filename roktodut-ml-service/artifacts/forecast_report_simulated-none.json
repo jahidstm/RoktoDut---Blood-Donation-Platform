@@ -1,0 +1,91 @@
+{
+  "status": "ok",
+  "weeks": 156,
+  "series": 64,
+  "horizon_weeks": 4,
+  "folds": 16,
+  "fold_origins": [
+    "2025-09-01",
+    "2025-09-29",
+    "2025-10-27",
+    "2025-11-24",
+    "2025-12-22",
+    "2026-01-19",
+    "2026-02-16",
+    "2026-03-16",
+    "2026-04-13",
+    "2026-05-11",
+    "2026-06-08",
+    "2026-07-06",
+    "2026-08-03",
+    "2026-08-31",
+    "2026-09-28",
+    "2026-10-26"
+  ],
+  "decision_metric": "wape",
+  "selection": {
+    "naive": 0.8486,
+    "ma4": 0.6748,
+    "ma13": 0.6442,
+    "seasonal_naive": 0.852,
+    "ets": 0.6247,
+    "lightgbm": 0.6262
+  },
+  "judging": {
+    "naive": {
+      "mase": 1.0086,
+      "wape": 0.7853,
+      "national_wape": 0.137
+    },
+    "ma4": {
+      "mase": 0.8911,
+      "wape": 0.649,
+      "national_wape": 0.1053
+    },
+    "ma13": {
+      "mase": 0.8621,
+      "wape": 0.6087,
+      "national_wape": 0.097
+    },
+    "seasonal_naive": {
+      "mase": 1.0068,
+      "wape": 0.7811,
+      "national_wape": 0.1734
+    },
+    "ets": {
+      "mase": 0.8608,
+      "wape": 0.5992,
+      "national_wape": 0.1036
+    },
+    "lightgbm": {
+      "mase": 0.9011,
+      "wape": 0.6018,
+      "national_wape": 0.0989
+    }
+  },
+  "chosen_model": "ets",
+  "best_baseline": "ma13",
+  "fold_wins": 5,
+  "promoted": false,
+  "reasons_not_promoted": [
+    "ets WAPE 0.599 is not at least 5% below ma13 0.609"
+  ],
+  "method_used": "ma13",
+  "intervals": {
+    "series": {
+      "lo": -0.9112931795128764,
+      "hi": 1.184560266036591,
+      "coverage_on_judging_folds": 0.821,
+      "checked_points": 1536,
+      "reliable": true
+    },
+    "national": {
+      "lo": -1.9596584442066094,
+      "hi": 2.447415573886345,
+      "coverage_on_judging_folds": 0.875,
+      "checked_points": 24,
+      "reliable": true
+    },
+    "nominal": 0.8
+  }
+}

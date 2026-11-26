@@ -6,13 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\BloodRequest;
 use App\Models\User;
 use App\Services\Analytics\DemandAnalytics;
+use App\Services\Analytics\DemandForecast;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AnalyticsController extends Controller
 {
-    public function index(Request $request, DemandAnalytics $analytics)
+    public function index(Request $request, DemandAnalytics $analytics, DemandForecast $forecast)
     {
         $requested = $request->query('source');
         $autoDemo = false;
@@ -37,6 +38,7 @@ class AnalyticsController extends Controller
             'realCount' => $analytics->countRequests(DemandAnalytics::SOURCE_REAL),
             'minReal' => (int) config('analytics.min_real_requests', 30),
             'totalDonors' => User::query()->where('is_donor', true)->count(),
+            'forecast' => $forecast->latest(),
         ]);
     }
 

@@ -156,8 +156,10 @@
     </div>
 
     <p class="mt-6 text-xs text-slate-500 font-semibold">
-        এই পাতার সব সংখ্যা গণনা করা বর্ণনামূলক হিসাব, কোনো ML পূর্বাভাস নয়। পূর্বাভাস আসবে আলাদা ফিচারে।
+        উপরের সব সংখ্যা গণনা করা বর্ণনামূলক হিসাব, কোনো পূর্বাভাস নয়। পূর্বাভাস নিচে আলাদা করে দেখানো হলো।
     </p>
+
+    @include('admin.analytics.partials.forecast')
 
     {{-- Heatmap link --}}
     <div class="mt-8">
