@@ -101,9 +101,12 @@ function renderSuccess(card, phone) {
         ? `<a href="${requestUrl}" class="inline-flex h-10 items-center justify-center rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-bold text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-200">রিকোয়েস্ট করুন</a>`
         : '';
 
+    // The number was typed by another user: keep only what can be dialled.
+    const tel = String(phone).replace(/[^0-9০-৯+]/g, '');
+
     container.innerHTML = `
         <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 js-success-actions">
-            <a href="tel:${phone}" class="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-600 px-4 text-sm font-black text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-300">
+            <a href="tel:${tel}" class="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-600 px-4 text-sm font-black text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-300">
                 কল করুন
             </a>
             ${requestActionHtml}

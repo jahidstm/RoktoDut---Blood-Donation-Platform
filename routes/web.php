@@ -295,7 +295,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::post('/requests/{bloodRequest}/respond', [BloodRequestResponseController::class, 'store'])->name('requests.respond');
     Route::patch('/responses/{response}/status', [BloodRequestResponseController::class, 'updateStatus'])->name('requests.responses.update');
-    Route::post('/responses/{response}/claim', [DonationClaimController::class, 'store'])->name('donations.claim');
+    Route::post('/responses/{response}/claim', [DonationClaimController::class, 'store'])->middleware('throttle:5,10')->name('donations.claim');
     Route::post('/responses/{response}/recipient-verify', [DonationClaimController::class, 'verifyByRecipient'])->name('donations.recipient_verify');
     Route::get('/responses/{response}/chat', [ChatController::class, 'index'])->name('chat.show');
     Route::post('/responses/{response}/chat', [ChatController::class, 'store'])->name('chat.store');

@@ -45,7 +45,7 @@ class RegisteredUserController extends Controller
             // ✅ The Final 1% Polish: Dynamic validation via required_if
             'phone'              => [
                 'required_if:registration_intent,donor',
-                'nullable', 'string', 'max:20', 'unique:users,phone'
+                'nullable', 'string', 'max:20', 'regex:/^[0-9০-৯+\- ]{6,20}$/u', 'unique:users,phone'
             ],
             'blood_group'        => [
                 'required_if:registration_intent,donor',
@@ -87,12 +87,8 @@ class RegisteredUserController extends Controller
             }
         }
 
-        if ($referredById) {
-            $referrerModel = User::find($referredById);
-            if ($referrerModel) {
-                app(\App\Services\GamificationService::class)->awardReferralSignupPoints($referrerModel);
-            }
-        }
+        // No points for a bare sign-up (fake accounts are free). The referrer is rewarded when
+        // the new user completes their profile and again on their first verified donation.
 
         event(new Registered($user));
         Auth::login($user);

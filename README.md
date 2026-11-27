@@ -149,7 +149,7 @@ Training and forecasting run offline on anonymised exports.
 Chart.js, Leaflet/GeoJSON, Firebase, Telegram, PWA.
 **Data / ML:** Python 3.12, FastAPI, pandas, NumPy, scikit-learn, LightGBM, statsmodels,
 Gemini (embeddings + generation), Groq (optional), Power BI (export).
-**Quality:** PHPUnit (163 tests), pytest (100 tests), GitHub Actions, Playwright screenshots.
+**Quality:** PHPUnit (179 tests), pytest (100 tests), GitHub Actions, Playwright screenshots.
 
 ---
 

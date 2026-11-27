@@ -30,6 +30,11 @@ class OnboardingController extends Controller
     {
         $user = Auth::user();
 
+        // Once only: a second submit could rewrite last_donated_at and skip the cooldown.
+        if ($user->is_onboarded) {
+            return redirect()->route('dashboard');
+        }
+
         // ১. বেসিক লোকেশন ভ্যালিডেশন
         $rules = [
             'division_id' => 'required|exists:divisions,id',

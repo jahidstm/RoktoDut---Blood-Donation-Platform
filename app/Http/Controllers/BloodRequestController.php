@@ -368,12 +368,16 @@ class BloodRequestController extends Controller
         // ─── সকল accepted ডোনারদের জন্য Event Fire করা ────────────────────
         $acceptedResponses = BloodRequestResponse::where('blood_request_id', $bloodRequest->id)
             ->where('status', 'accepted')
+            // Accepting is not donating: both sides must say it happened.
+            ->where('verification_status', 'claimed')
             ->with('user')
             ->get();
 
         foreach ($acceptedResponses as $response) {
             $donor = $response->user;
             if (!$donor) continue;
+
+            $response->update(['verification_status' => 'verified', 'fulfilled_at' => now()]);
 
             // 🎯 First Responder Detection:
             // ইমার্জেন্সি রিকোয়েস্টে ৩ ঘণ্টার মধ্যে রেসপন্ড করলে বোনাস
@@ -393,7 +397,7 @@ class BloodRequestController extends Controller
             ));
         }
 
-        return back()->with('success', '🎉 অভিনন্দন! রিকোয়েস্টটি সম্পন্ন মার্ক করা হয়েছে এবং ডোনাররা পয়েন্ট পাবেন।');
+        return back()->with('success', '🎉 অভিনন্দন! রিকোয়েস্টটি সম্পন্ন মার্ক করা হয়েছে। যাঁরা রক্তদানের দাবি করেছেন তাঁরা পয়েন্ট পাবেন।');
     }
 
     public function renew(Request $request, BloodRequest $bloodRequest)

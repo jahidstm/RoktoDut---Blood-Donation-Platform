@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Intervention\Image\ImageManager;
 use Intervention\Image\Drivers\Gd\Driver;
-use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class SmartCardImageController extends Controller
 {
@@ -70,7 +69,7 @@ class SmartCardImageController extends Controller
             // 3. Generate QR Code and Overlay it
             $verifyUrl = route('public.verify', $user->qr_token);
             $qrCodePath = storage_path("app/private/temp-qr-{$user->id}.png");
-            QrCode::format('png')->size(600)->margin(2)->generate($verifyUrl, $qrCodePath);
+            \App\Support\QrPng::save($verifyUrl, $qrCodePath, 600, 2);
 
             $qrImage = $manager->read($qrCodePath);
             // Insert QR code in the middle of the vertical pass

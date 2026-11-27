@@ -29,6 +29,18 @@ class OfflineClaimService
 
         $this->assertCooldown($donor, $data->donationDate);
 
+        $hasOpenClaim = OfflineDonationClaim::query()
+            ->where('donor_id', $donor->id)
+            ->where(fn ($q) => $q->where('status', 'admin_review')
+                ->orWhere(fn ($p) => $p->where('status', 'pending')->where('expires_at', '>', now())))
+            ->exists();
+
+        if ($hasOpenClaim) {
+            throw ValidationException::withMessages([
+                'donation_date' => 'আপনার একটি ক্লেইম এখনো যাচাইয়ের অপেক্ষায় আছে।',
+            ]);
+        }
+
         $normalizedPhone = $this->normalizeToPlus880($data->recipientPhone);
         
         // 🛡️ ANTI-CHEAT: Prevent Self-Claim Farming
@@ -79,7 +91,12 @@ class OfflineClaimService
         }
 
         return DB::transaction(function () use ($claim, $approved) {
+            // Locked and re-checked, so two quick confirmations cannot both pay out.
+            OfflineDonationClaim::query()->whereKey($claim->id)->lockForUpdate()->first();
             $claim->refresh();
+            if ($claim->status !== 'pending') {
+                throw ValidationException::withMessages(['claim' => 'এই ক্লেইমটি ইতোমধ্যে প্রসেস করা হয়েছে।']);
+            }
             $claim->loadMissing(['donor', 'matchedRequest']);
 
             if ($approved) {

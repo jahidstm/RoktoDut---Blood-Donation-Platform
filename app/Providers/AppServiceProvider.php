@@ -17,8 +17,6 @@ use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Log;
 use App\Listeners\LogSuccessfulLogin;
-use App\Events\DonationCompleted;
-use App\Listeners\RewardDonorPoints;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Vite;
@@ -43,11 +41,8 @@ class AppServiceProvider extends ServiceProvider
             LogSuccessfulLogin::class,
         );
 
-        Event::listen(
-            DonationCompleted::class,
-            RewardDonorPoints::class,
-        );
-        
+        // RewardDonorPoints is not listed here: Laravel discovers it, and a second registration ran it twice.
+
         // ─── Queue Failed Job Listener ─────────────────────────────────────────
         Event::listen(JobFailed::class, function (JobFailed $event) {
             Log::critical('[QUEUE_JOB_FAILED]', [

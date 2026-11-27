@@ -29,7 +29,7 @@ class StoreOfflineClaimRequest extends FormRequest
             'patient_name' => ['required', 'string', 'max:120'],
             'district_id' => ['required', 'integer', 'exists:districts,id'],
             'hospital_name' => ['nullable', 'string', 'max:180'],
-            'donation_date' => ['required', 'date', 'before_or_equal:today'],
+            'donation_date' => ['required', 'date', 'before_or_equal:today', 'after_or_equal:' . now()->subDays(120)->toDateString()],
             'proof_path' => ['nullable', 'file', 'image', 'max:4096'],
         ];
     }

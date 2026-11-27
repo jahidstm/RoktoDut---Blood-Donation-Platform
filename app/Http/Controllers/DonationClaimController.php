@@ -27,6 +27,9 @@ class DonationClaimController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
+        // Only the donor the recipient accepted, and only once.
+        abort_unless($response->status === 'accepted' && $response->verification_status === 'pending', 403);
+
         $request->validate([
             'claim_method' => 'required|in:pin,image',
             'pin'          => 'required_if:claim_method,pin|nullable|string|size:4',
@@ -85,17 +88,14 @@ class DonationClaimController extends Controller
 
         $request->validate(['decision' => 'required|in:approve,dispute']);
 
+        // There is nothing to confirm or dispute until the donor has claimed the donation.
+        if ($response->verification_status !== 'claimed') {
+            return back()->with('error', $response->verification_status === 'verified'
+                ? 'এই ডোনেশনটি ইতিমধ্যে ভেরিফাই করা হয়েছে।'
+                : 'ডোনার এখনো রক্তদানের দাবি করেননি।');
+        }
+
         if ($request->decision === 'approve') {
-            if ($response->verification_status === 'verified') {
-                return back()->with('error', 'এই ডোনেশনটি ইতিমধ্যে ভেরিফাই করা হয়েছে।');
-            }
-
-            $response->update([
-                'verification_status' => 'verified',
-                'fulfilled_at'        => now(),
-                'fulfilled_by'        => Auth::id()
-            ]);
-
             $donor = $response->user;
             if ($donor) {
                 $bloodRequest = $response->bloodRequest;
@@ -124,6 +124,13 @@ class DonationClaimController extends Controller
                 } catch (\RuntimeException $e) {
                     return back()->with('error', $e->getMessage());
                 }
+
+                // Marked only once the reward went through, so a blocked one stays open.
+                $response->update([
+                    'verification_status' => 'verified',
+                    'fulfilled_at'        => now(),
+                    'fulfilled_by'        => Auth::id(),
+                ]);
 
                 // 🎯 গ্রহীতার রিভিউ পয়েন্ট (+১০)
                 $this->gamification->awardReviewPoints($donor);
@@ -171,17 +178,13 @@ class DonationClaimController extends Controller
 
         $request->validate(['status' => 'required|in:verified,rejected']);
 
-        if ($response->verification_status === 'verified' && $request->status === 'verified') {
-            return back()->with('error', 'এই ডোনেশনটি ইতিমধ্যে ভেরিফাই করা হয়েছে।');
+        if (!in_array($response->verification_status, ['claimed', 'disputed'], true)) {
+            return back()->with('error', $response->verification_status === 'verified'
+                ? 'এই ডোনেশনটি ইতিমধ্যে ভেরিফাই করা হয়েছে।'
+                : 'ডোনার এখনো রক্তদানের দাবি করেননি।');
         }
 
         if ($request->status === 'verified') {
-            $response->update([
-                'verification_status' => 'verified',
-                'fulfilled_at'        => now(),
-                'fulfilled_by'        => Auth::id()
-            ]);
-
             $donor = $response->user;
             if ($donor) {
                 $bloodRequest = $response->bloodRequest;
@@ -200,12 +203,22 @@ class DonationClaimController extends Controller
                     }
                 }
 
-                $this->gamification->processDonationReward(
-                    donor: $donor,
-                    bloodRequest: $bloodRequest ?? new \App\Models\BloodRequest(),
-                    isFirstResponder: $isFirstResponder,
-                    isMidnightSavior: $isMidnightSavior
-                );
+                try {
+                    $this->gamification->processDonationReward(
+                        donor: $donor,
+                        bloodRequest: $bloodRequest ?? new \App\Models\BloodRequest(),
+                        isFirstResponder: $isFirstResponder,
+                        isMidnightSavior: $isMidnightSavior
+                    );
+                } catch (\RuntimeException $e) {
+                    return back()->with('error', $e->getMessage());
+                }
+
+                $response->update([
+                    'verification_status' => 'verified',
+                    'fulfilled_at'        => now(),
+                    'fulfilled_by'        => Auth::id(),
+                ]);
 
                 // Send notification to the donor
                 $donor->notify(new \App\Notifications\BloodResponseNotification($bloodRequest ?? new \App\Models\BloodRequest(), Auth::user(), 'verified'));

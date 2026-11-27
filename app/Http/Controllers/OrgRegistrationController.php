@@ -30,7 +30,7 @@ class OrgRegistrationController extends Controller
 
             // কন্টাক্ট ইনফো (users টেবিলেও ইমেইল ইউনিক হতে হবে)
             'official_email' => 'required|string|email|max:255|unique:users,email|unique:organizations,email',
-            'contact_number' => 'required|string|max:20',
+            'contact_number' => ['required', 'string', 'max:20', 'regex:/^[0-9০-৯+\- ]{6,20}$/u'],
             'division_id' => 'required|exists:divisions,id',
             'district_id' => 'required|exists:districts,id',
             'upazila_id' => 'required|exists:upazilas,id',
@@ -39,7 +39,7 @@ class OrgRegistrationController extends Controller
             // অ্যাডমিন ইনফো
             'admin_name' => 'required|string|max:255',
             'admin_designation' => 'required|string|max:100',
-            'admin_phone' => 'required|string|max:20|unique:users,phone',
+            'admin_phone' => ['required', 'string', 'max:20', 'regex:/^[0-9০-৯+\- ]{6,20}$/u', 'unique:users,phone'],
             'password' => 'required|string|min:8|confirmed',
 
             // ডকুমেন্টস
