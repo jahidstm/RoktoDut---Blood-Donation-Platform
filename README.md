@@ -140,6 +140,8 @@ Training and forecasting run offline on anonymised exports.
   phones and emails, and gives fixed answers to emergencies and personal medical questions.
 - Training exports replace donor ids with a keyed hash and drop names, phones and coordinates.
 - No secret defaults in config; the ML service refuses to start without its key.
+- Seeing a donor's phone number needs a login and is rate limited; hidden numbers are never returned.
+- In production the demo seeders do nothing; create the first admin with `php artisan app:create-admin you@example.com`.
 
 ## Tech stack
 
@@ -147,7 +149,7 @@ Training and forecasting run offline on anonymised exports.
 Chart.js, Leaflet/GeoJSON, Firebase, Telegram, PWA.
 **Data / ML:** Python 3.12, FastAPI, pandas, NumPy, scikit-learn, LightGBM, statsmodels,
 Gemini (embeddings + generation), Groq (optional), Power BI (export).
-**Quality:** PHPUnit (147 tests), pytest (100 tests), GitHub Actions, Playwright screenshots.
+**Quality:** PHPUnit (163 tests), pytest (100 tests), GitHub Actions, Playwright screenshots.
 
 ---
 
