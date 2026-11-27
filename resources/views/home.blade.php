@@ -160,17 +160,17 @@
 {{-- ═══════════════════════════════════════════════════════════════
      SECTION 4 — FEATURES (Red)
 ═══════════════════════════════════════════════════════════════ --}}
-<section class="bg-[#c82128] py-24 relative overflow-hidden">
+<section class="bg-[#c82128] py-12 relative overflow-hidden">
     <div class="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,rgba(255,255,255,0.07),transparent)] pointer-events-none"></div>
 
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 relative z-10">
-        <div class="text-center mb-16">
-            <div class="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white text-xs font-bold px-5 py-2 rounded-full mb-6 shadow-sm scroll-reveal" data-scroll-reveal>✦ কেন রক্তদূত?</div>
-            <h2 class="text-4xl lg:text-5xl font-black text-white mb-5 tracking-tight scroll-reveal" data-scroll-reveal>একটি প্ল্যাটফর্ম, <span class="text-white/90">অসংখ্য সুবিধা</span></h2>
-            <p class="text-white/80 font-medium max-w-xl mx-auto text-lg scroll-reveal" data-scroll-reveal>রক্তদূত শুধু একটি ওয়েবসাইট নয় — এটি বাংলাদেশের সবচেয়ে নির্ভরযোগ্য জীবনরক্ষা নেটওয়ার্ক।</p>
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 relative z-10">
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white text-xs font-bold px-4 py-1.5 rounded-full mb-3 shadow-sm scroll-reveal" data-scroll-reveal>✦ কেন রক্তদূত?</div>
+            <h2 class="text-3xl lg:text-4xl font-black text-white mb-2 tracking-tight scroll-reveal" data-scroll-reveal>একটি প্ল্যাটফর্ম, <span class="text-white/90">অসংখ্য সুবিধা</span></h2>
+            <p class="text-white/80 font-medium max-w-2xl mx-auto text-base scroll-reveal" data-scroll-reveal>রক্তদূত শুধু একটি ওয়েবসাইট নয় — এটি বাংলাদেশের সবচেয়ে নির্ভরযোগ্য জীবনরক্ষা নেটওয়ার্ক।</p>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @php
             $features = [
                 ['icon'=>'🔒','title'=>'সম্পূর্ণ গোপনীয়','desc'=>'ডোনারের ফোন নম্বর কখনো পাবলিক করা হয় না। OTP সিস্টেমে সুরক্ষিত যোগাযোগ।','ring'=>'ring-white/20','glow'=>'bg-white/10'],
@@ -180,11 +180,11 @@
             ];
             @endphp
             @foreach($features as $f)
-            <div class="bg-white/5 border border-white/10 rounded-2xl p-7 hover:bg-white/10 hover:border-white/20 transition-all duration-300 group cursor-default shadow-sm hover:shadow-md scroll-reveal" data-scroll-reveal>
-                <div class="w-14 h-14 rounded-2xl {{ $f['glow'] }} ring-1 {{ $f['ring'] }} flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
+            <div class="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/10 hover:border-white/20 transition-all duration-300 group cursor-default shadow-sm hover:shadow-md scroll-reveal" data-scroll-reveal>
+                <div class="w-11 h-11 rounded-xl {{ $f['glow'] }} ring-1 {{ $f['ring'] }} flex items-center justify-center text-xl mb-3 group-hover:scale-110 transition-transform duration-300">
                     {{ $f['icon'] }}
                 </div>
-                <h3 class="text-white font-black text-lg mb-3">{{ $f['title'] }}</h3>
+                <h3 class="text-white font-black text-base mb-1.5">{{ $f['title'] }}</h3>
                 <p class="text-white/80 text-sm leading-relaxed font-medium">{{ $f['desc'] }}</p>
             </div>
             @endforeach
