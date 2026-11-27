@@ -78,8 +78,8 @@
             opacity: 0;
             --sr-x: 0px;
             --sr-y: 24px;
-            transform: translate3d(var(--sr-x), var(--sr-y), 0);
-            transition: opacity 0.45s ease-out, transform 0.45s ease-out;
+            transform: translate3d(var(--sr-x), var(--sr-y), 0) translate(var(--tw-translate-x, 0), var(--tw-translate-y, 0)) scale(var(--tw-scale-x, 1), var(--tw-scale-y, 1));
+            transition: opacity 0.45s ease-out, transform 0.45s ease-out, color 0.3s, background-color 0.3s, border-color 0.3s, box-shadow 0.3s;
             will-change: opacity, transform;
         }
         .scroll-reveal--left {
@@ -171,29 +171,6 @@
             window.applyHeroButtonStyles();
             window.initScrollReveal();
         });
-    </script>
-
-    {{-- Lenis smooth scrolling --}}
-    <script src="https://unpkg.com/@studio-freight/lenis@1.0.42/bundled/lenis.min.js"></script>
-    <script>
-        (() => {
-            const lenis = new Lenis({
-                smoothWheel: true,
-                normalizeWheel: true,
-                syncTouch: true,
-            });
-
-            lenis.on('scroll', () => {
-                window.dispatchEvent(new Event('scroll'));
-            });
-
-            function raf(time) {
-                lenis.raf(time);
-                requestAnimationFrame(raf);
-            }
-
-            requestAnimationFrame(raf);
-        })();
     </script>
 
     @include('layouts.chatbot-widget')
