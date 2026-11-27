@@ -1,9 +1,13 @@
+{{-- One demand map for both audiences. $public hides what only admins may see:
+     demo data, donor fatigue and the CSV export. --}}
+@php $public = $public ?? false; @endphp
 <!DOCTYPE html>
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>চাহিদার মানচিত্র — রক্তদূত অ্যাডমিন</title>
+    <title>{{ $public ? 'লাইভ রক্তের চাহিদা মানচিত্র — রক্তদূত' : 'চাহিদার মানচিত্র — রক্তদূত অ্যাডমিন' }}</title>
+    @if ($public)<meta name="description" content="বাংলাদেশের জেলাভিত্তিক রক্তের খোলা অনুরোধের ইন্টারেক্টিভ মানচিত্র।">@endif
     <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -199,6 +203,14 @@
         .spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid #fecaca; border-top-color: var(--accent); animation: spin .8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        .menu-btn { display: none; border: 0; background: none; padding: .25rem; color: var(--ink-2); cursor: pointer; }
+        .cta { display: block; text-align: center; padding: .7rem; border-radius: 11px; font-size: .8rem; font-weight: 700; text-decoration: none; transition: background .15s, border-color .15s; }
+        .cta + .cta { margin-top: .45rem; }
+        .cta.primary { background: var(--accent); color: #fff; }
+        .cta.primary:hover { background: #b91c1c; }
+        .cta.secondary { border: 1px solid var(--line); color: var(--ink-1); background: var(--surface); }
+        .cta.secondary:hover { border-color: var(--ink-1); }
+
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
             .pulse::before, .pulse::after { display: none; }
@@ -207,6 +219,8 @@
         @media (max-width: 1000px) {
             html, body { overflow: auto; height: auto; }
             .title, .live { display: none; }
+            .menu-btn { display: block; }
+            .brand-sub { display: none; }
             .wrap, .wrap.has-banner { display: flex; flex-direction: column; height: auto; }
             .map-col { order: -1; height: 64vh; min-height: 420px; }
             .panel.left, .panel.right { border: 0; border-top: 1px solid var(--line); }
@@ -218,28 +232,41 @@
 <body>
 
 <header class="topbar" x-data="{ mobileMenuOpen: false }">
-    <a href="{{ route('admin.dashboard') }}" class="brand">
-        <div class="brand-logo"><x-logo size="sm" variant="icon" /></div>
-        <div>
-            <div class="brand-name">রক্তদূত</div>
-            <div class="brand-sub">Admin</div>
-        </div>
-    </a>
-    <div class="title">জেলাভিত্তিক রক্তের চাহিদার মানচিত্র <span class="live"><i></i>প্রতি ৩ মিনিটে হালনাগাদ</span></div>
+    <div style="display:flex;align-items:center;gap:.4rem">
+        @if ($public)
+            <button type="button" class="menu-btn" @click="mobileMenuOpen = true" aria-label="মেনু">
+                <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+        @endif
+        <a href="{{ $public ? route('home') : route('admin.dashboard') }}" class="brand">
+            <div class="brand-logo"><x-logo size="sm" variant="icon" /></div>
+            <div>
+                <div class="brand-name">রক্তদূত</div>
+                <div class="brand-sub">{{ $public ? 'Blood Donation Platform' : 'Admin' }}</div>
+            </div>
+        </a>
+    </div>
+    <div class="title">{{ $public ? 'লাইভ রক্তের চাহিদা মানচিত্র' : 'জেলাভিত্তিক রক্তের চাহিদার মানচিত্র' }} <span class="live"><i></i>প্রতি ৩ মিনিটে হালনাগাদ</span></div>
     <div class="top-actions">
-        <a href="{{ route('live-demand.index') }}" target="_blank" class="ghost-btn">পাবলিক ভিউ ↗</a>
-        <a href="{{ route('admin.analytics.index') }}" class="ghost-btn">← অ্যানালিটিক্স</a>
+        @if ($public)
+            <a href="{{ route('home') }}" class="ghost-btn">← হোমে ফিরুন</a>
+        @else
+            <a href="{{ route('live-demand.index') }}" target="_blank" class="ghost-btn">পাবলিক ভিউ ↗</a>
+            <a href="{{ route('admin.analytics.index') }}" class="ghost-btn">← অ্যানালিটিক্স</a>
+        @endif
     </div>
     @include('components.mobile-menu')
 </header>
 
 <div class="filters">
+    @unless ($public)
     <span class="f-label">ডেটা</span>
     <div class="seg" id="f-source">
         <button data-v="real" class="{{ $source === 'real' ? 'on' : '' }}">আসল</button>
         <button data-v="demo" class="{{ $source === 'demo' ? 'on' : '' }}">ডেমো</button>
     </div>
     <div class="f-sep"></div>
+    @endunless
     <span class="f-label">সময়</span>
     <div class="seg" id="f-range">
         @foreach (['all_time' => 'সব সময়', 'today' => 'আজ', 'last_7_days' => '৭ দিন', 'last_30_days' => '৩০ দিন'] as $k => $label)
@@ -262,10 +289,12 @@
     </div>
 </div>
 
+@unless ($public)
 <div class="demo-banner" id="demo-banner" @if ($source !== 'demo') hidden @endif>
     ⚠ <strong>ডেমো ডেটা দেখানো হচ্ছে।</strong> এই রিকোয়েস্টগুলো কম্পিউটারে বানানো, আসল কোনো রোগীর নয়।
     @if ($autoDemo) আসল রিকোয়েস্ট খুব কম থাকায় ডেমো নিজে থেকে বেছে নেওয়া হয়েছে। @endif
 </div>
+@endunless
 
 <div class="wrap {{ $source === 'demo' ? 'has-banner' : '' }}" id="wrap">
 
@@ -299,6 +328,12 @@
 
         <div class="sec">
             <p class="sec-title">স্কোর কীভাবে হয়</p>
+            @if ($public)
+            <div class="note">
+                <b>ঝুঁকি স্কোর (০–১০০)</b> একটা আনুমানিক সূচক: জেলায় কত অনুরোধ খোলা আছে আর সেখানকার দাতারা কতটা ঘন ঘন ডাক পাচ্ছেন, এই দুটো মিলিয়ে।
+                শুধু খোলা অনুরোধ গোনা হয়, মানচিত্র প্রতি ৩ মিনিটে হালনাগাদ হয়।
+            </div>
+            @else
             <div class="note">
                 <b>ঝুঁকি স্কোর (০–১০০)</b> = জেলার চাহিদা (সর্বোচ্চ জেলার তুলনায়) × ০.৬ + ডোনারের ক্লান্তির সূচক × ০.৪।
                 ওজনগুলো হাতে ঠিক করা, তাই এটা একটা <b>হিউরিস্টিক সূচক</b>, প্রশিক্ষিত মডেল নয়।
@@ -306,6 +341,7 @@
             <div class="note warn" id="dfi-warning" style="margin-top:.5rem" hidden>
                 ডোনারের ক্লান্তির ডেটা (Redis) পাওয়া যায়নি, তাই স্কোর এখন শুধু চাহিদা থেকে আসছে এবং ৬০-এর বেশি হতে পারে না।
             </div>
+            @endif
         </div>
     </aside>
 
@@ -328,10 +364,15 @@
         <p class="sec-title">ঝুঁকি অনুযায়ী জেলা</p>
         <ul class="rank" id="rank" style="flex:1"></ul>
         <div style="padding-top:.75rem">
+            @if ($public)
+                <a href="{{ route('requests.create') }}" class="cta primary">রক্তের অনুরোধ করুন</a>
+                <a href="{{ route('search') }}" class="cta secondary">দাতা খুঁজুন</a>
+            @else
             <a id="export" class="export-btn" href="#">
                 <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 CSV ডাউনলোড (৬৪ জেলা)
             </a>
+            @endif
             <p style="font-size:.62rem;color:var(--ink-3);text-align:center;margin:.4rem 0 0" id="updated">তৈরি: {{ $generatedAt }}</p>
         </div>
     </aside>
@@ -373,6 +414,11 @@
     const NONE = { key: 'none', label: 'খোলা চাহিদা নেই', range: '০', color: css.getPropertyValue('--tier-0').trim() };
     const tierOf = (crs, demand) => (!demand || crs <= 0) ? NONE : TIERS.find(t => crs > t.min) || TIERS[3];
     const RANGE_BN = { all_time: 'সব সময়ের খোলা রিকোয়েস্ট', today: 'আজকে তৈরি', last_7_days: 'গত ৭ দিনে তৈরি', last_30_days: 'গত ৩০ দিনে তৈরি' };
+
+    const PUBLIC = @json($public);
+    const DISTRICT_IDS = @json($districtIds ?? new stdClass);
+    const DATA_URL = @json($public ? route('api.analytics.spatial-heatmap') : route('admin.heatmap.data'));
+    const EXPORT_URL = @json($public ? null : route('admin.heatmap.export'));
 
     const state = {
         source: @json($source),
@@ -515,11 +561,13 @@
         }));
 
         const noDfi = rows.length > 0 && rows.every(([, d]) => !d.avg_dfi);
-        document.getElementById('dfi-warning').hidden = !noDfi;
+        if (!PUBLIC) {
+            document.getElementById('dfi-warning').hidden = !noDfi;
 
-        const q = new URLSearchParams({ range: state.range, source: state.source });
-        if (state.group) q.set('group', state.group);
-        document.getElementById('export').href = `{{ route('admin.heatmap.export') }}?${q}`;
+            const q = new URLSearchParams({ range: state.range, source: state.source });
+            if (state.group) q.set('group', state.group);
+            document.getElementById('export').href = `${EXPORT_URL}?${q}`;
+        }
         document.getElementById('updated').textContent = 'শেষ হালনাগাদ: ' + bnNum(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
 
         if (state.selected) showDetail(state.selected);
@@ -530,6 +578,12 @@
             `<div style="font-size:.62rem;font-weight:800;color:var(--ink-3);letter-spacing:.08em;margin-bottom:.35rem">ঝুঁকি স্কোর</div>` +
             [...TIERS, NONE].map(t => `<div class="legend-row"><span class="sw" style="background:${t.color}"></span>${t.label} <span style="color:var(--ink-3)">(${t.range})</span></div>`).join('') +
             `<div class="legend-row" style="margin-top:.3rem"><span class="pulse" style="--c:${TIERS[1].color};width:12px;height:12px;margin:0 5px"><i></i></span>স্কোর ৫০-এর বেশি</div>`;
+    }
+
+    function searchUrl(en) {
+        const q = new URLSearchParams(DISTRICT_IDS[en]);
+        if (state.group) q.set('blood_group', state.group);
+        return @json(route('search')) + '?' + q;
     }
 
     // ── Selection ────────────────────────────────────────────
@@ -544,11 +598,12 @@
             <div class="grid3">
                 <div class="cell"><b>${fmt(d.demand)}</b><span>রিকোয়েস্ট</span></div>
                 <div class="cell"><b>${fmt(d.crs)}</b><span>ঝুঁকি স্কোর</span></div>
-                <div class="cell"><b>${fmt(d.avg_dfi)}</b><span>ক্লান্তি সূচক</span></div>
+                <div class="cell"><b>${PUBLIC ? (groups[0]?.[0] ?? '—') : fmt(d.avg_dfi)}</b><span>${PUBLIC ? 'বেশি চাওয়া' : 'ক্লান্তি সূচক'}</span></div>
             </div>
             ${groups.length ? groups.map(([g, n]) => `<div class="bar-row"><span class="bar-name">${g}</span>
                 <div class="bar-track"><div class="bar-fill" data-w="${(n / gMax) * 100}"></div></div><span class="bar-num">${fmt(n)}</span></div>`).join('')
-              : '<p style="font-size:.74rem;color:var(--ink-3);margin:0">এই জেলায় এখন কোনো খোলা রিকোয়েস্ট নেই।</p>'}`;
+              : '<p style="font-size:.74rem;color:var(--ink-3);margin:0">এই জেলায় এখন কোনো খোলা রিকোয়েস্ট নেই।</p>'}
+            ${PUBLIC && DISTRICT_IDS[en] ? `<a class="cta primary" style="margin-top:.7rem" href="${searchUrl(en)}">এই জেলায় দাতা খুঁজুন →</a>` : ''}`;
         document.getElementById('detail').classList.add('show');
         requestAnimationFrame(() => requestAnimationFrame(() =>
             document.querySelectorAll('#detail [data-w]').forEach(b => b.style.width = b.dataset.w + '%')));
@@ -577,9 +632,11 @@
         const loading = document.getElementById('loading');
         if (!first) loading.classList.remove('hide');
         try {
-            const q = new URLSearchParams({ range: state.range, source: state.source });
+            const q = new URLSearchParams({ range: state.range });
+            if (!PUBLIC) q.set('source', state.source);
             if (state.group) q.set('group', state.group);
-            const res = await fetch(`{{ route('admin.heatmap.data') }}?${q}`, { headers: { Accept: 'application/json' } });
+            const res = await fetch(`${DATA_URL}?${q}`, { headers: { Accept: 'application/json' } });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
             state.data = await res.json();
             paint(first);
             renderPanels();
@@ -602,7 +659,7 @@
 
     bindSeg('f-range', 'range', () => load(false));
     bindSeg('f-group', 'group', () => load(false));
-    bindSeg('f-source', 'source', () => {
+    if (!PUBLIC) bindSeg('f-source', 'source', () => {
         const demo = state.source === 'demo';
         document.getElementById('demo-banner').hidden = !demo;
         document.getElementById('wrap').classList.toggle('has-banner', demo);

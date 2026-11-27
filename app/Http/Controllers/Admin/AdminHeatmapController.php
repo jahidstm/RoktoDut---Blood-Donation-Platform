@@ -20,7 +20,7 @@ class AdminHeatmapController extends Controller
     {
         [$demo, $autoDemo] = $this->resolveSource($request);
 
-        return view('admin.analytics.heatmap', [
+        return view('maps.demand', [
             'generatedAt' => now()->format('d M Y, h:i A'),
             'dateRange'   => $this->resolveRange($request),
             'bloodGroup'  => $this->resolveBloodGroup($request),
