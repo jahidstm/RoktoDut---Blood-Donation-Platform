@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends(auth()->user()->dashboardLayout())
 
 @section('title', 'এডিট সাবস্ক্রিপশন — রক্তদূত')
 

@@ -193,9 +193,9 @@
         /* ── Scroll Reveal ── */
         .scroll-reveal {
             opacity: 0;
-            --sr-y: 20px;
+            --sr-y: 8px;
             transform: translateY(var(--sr-y));
-            transition: opacity 0.45s ease-out, transform 0.45s ease-out;
+            transition: opacity 0.2s ease-out, transform 0.2s ease-out;
             will-change: opacity, transform;
         }
         .scroll-reveal.is-visible,
@@ -209,42 +209,6 @@
             }
         }
 
-        /* SPA Loading bar */
-        #org-spa-progress {
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            height: 2.5px;
-            background: linear-gradient(90deg, #2563eb, #60a5fa, #2563eb);
-            background-size: 200% 100%;
-            animation: org-shimmer 1s linear infinite;
-            z-index: 9999;
-            opacity: 0;
-            transition: opacity 0.15s;
-            pointer-events: none;
-        }
-        #org-spa-progress.active { opacity: 1; }
-        @keyframes org-shimmer {
-            0%   { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
-        #org-page-content { transition: opacity 0.18s ease; }
-
-        /* ── Pending status badge on org header ── */
-        .org-pending-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            background: #fef3c7;
-            color: #92400e;
-            border: 1px solid #fde68a;
-            border-radius: 9999px;
-            font-size: 0.65rem;
-            font-weight: 800;
-            padding: 0.2rem 0.6rem;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
     </style>
 
     @stack('head')
@@ -313,6 +277,9 @@
                class="org-nav-item {{ request()->routeIs('org.members.index') ? 'active' : '' }}" data-tab="members">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                 মেম্বার ম্যানেজমেন্ট
+                @if(($orgPendingMembersCount ?? 0) > 0)
+                    <span class="ml-auto rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-extrabold leading-tight text-white">{{ $orgPendingMembersCount }}</span>
+                @endif
             </a>
 
             <div class="org-section-label">কার্যক্রম</div>
@@ -321,6 +288,9 @@
                class="org-nav-item {{ request()->routeIs('org.requests.*') ? 'active' : '' }}" data-tab="blood-requests">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
                 রক্তের অনুরোধ
+                @if(($orgOpenRequestsCount ?? 0) > 0)
+                    <span class="ml-auto rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-extrabold leading-tight text-white">{{ $orgOpenRequestsCount }}</span>
+                @endif
             </a>
 
             <a href="{{ route('org.camps.index') }}"
@@ -421,10 +391,6 @@
 {{-- ── Shared Footer ── --}}
 @include('layouts.footer')
 
-{{-- SPA Progress Bar --}}
-<div id="org-spa-progress"></div>
-
-{{-- Scroll Reveal --}}
 <script>
     window.initScrollReveal = function(root = document) {
         const items = root.querySelectorAll('[data-scroll-reveal]');
@@ -437,162 +403,7 @@
     document.addEventListener('DOMContentLoaded', () => window.initScrollReveal());
 </script>
 
-{{-- SPA Navigation --}}
-<script>
-(function () {
-    'use strict';
-
-    const cache = {};
-    const navLinks = document.querySelectorAll('.org-nav-item[data-tab]');
-    const contentEl = document.getElementById('org-page-content');
-    const progressBar = document.getElementById('org-spa-progress');
-
-    function setActive(tabId) {
-        navLinks.forEach(link => {
-            link.classList.toggle('active', link.dataset.tab === tabId);
-        });
-    }
-
-    function showProgress() { progressBar?.classList.add('active'); }
-    function hideProgress() { progressBar?.classList.remove('active'); }
-
-    function fadeOut() {
-        if (!contentEl) return;
-        contentEl.style.opacity = '0.4';
-        contentEl.style.pointerEvents = 'none';
-    }
-
-    function fadeIn() {
-        if (!contentEl) return;
-        contentEl.style.opacity = '1';
-        contentEl.style.pointerEvents = '';
-    }
-
-    function reinitAlpine(el) {
-        if (typeof Alpine === 'undefined') return;
-        el.querySelectorAll('[x-data]').forEach(node => {
-            if (node._x_dataStack) { try { Alpine.destroyTree(node); } catch {} }
-        });
-        try { Alpine.initTree(el); } catch {}
-    }
-
-    function runPageScripts(fetchedDoc, injectEl) {
-        const seen = new Set();
-        const exec = (code) => { try { new Function(code)(); } catch(e) { console.error(e); } };
-        const SKIP_SIGS = ['initScrollReveal', '__orgSpaNavigate'];
-        const isSkip = (c) => SKIP_SIGS.some(s => c.includes(s));
-
-        injectEl.querySelectorAll('script:not([type="module"])').forEach(s => {
-            const c = s.textContent;
-            if (!c.trim() || seen.has(c) || isSkip(c)) return;
-            seen.add(c); exec(c);
-        });
-
-        if (fetchedDoc) {
-            fetchedDoc.body?.querySelectorAll('script:not([src]):not([type="module"])').forEach(s => {
-                const c = s.textContent;
-                if (!c.trim() || seen.has(c) || isSkip(c)) return;
-                seen.add(c); exec(c);
-            });
-        }
-    }
-
-    let currentTab = document.querySelector('.org-nav-item[data-tab].active')?.dataset?.tab || 'members';
-
-    async function switchTab(tabId, url) {
-        if (tabId === currentTab) return;
-        currentTab = tabId;
-        setActive(tabId);
-
-        // Serve from cache instantly
-        if (typeof cache[tabId] === 'string') {
-            window.history.pushState({ tab: tabId }, '', url);
-            contentEl.innerHTML = cache[tabId];
-            window.scrollTo({ top: 0 });
-            runPageScripts(null, contentEl);
-            reinitAlpine(contentEl);
-            if (window.initScrollReveal) requestAnimationFrame(() => window.initScrollReveal(contentEl));
-            return;
-        }
-
-        showProgress();
-        fadeOut();
-
-        try {
-            const res = await fetch(url, {
-                headers: { 'Accept': 'text/html', 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'same-origin',
-                redirect: 'follow'
-            });
-
-            if (res.url.includes('/login')) { window.location.href = res.url; return; }
-
-            const html = await res.text();
-            const doc = new DOMParser().parseFromString(html, 'text/html');
-
-            let newHtml = '';
-            const panel = doc.querySelector(`[data-panel-id="${tabId}"]`);
-            if (panel) {
-                newHtml = panel.outerHTML;
-            } else {
-                const pageContent = doc.getElementById('org-page-content');
-                if (pageContent) {
-                    newHtml = pageContent.innerHTML;
-                } else {
-                    window.location.href = url;
-                    return;
-                }
-            }
-
-            cache[tabId] = newHtml;
-
-            contentEl.querySelectorAll('[x-data]').forEach(node => {
-                if (node._x_dataStack) { try { Alpine.destroyTree?.(node); } catch {} }
-            });
-
-            contentEl.innerHTML = newHtml;
-
-            const t = doc.querySelector('title')?.textContent;
-            if (t) document.title = t;
-
-            window.history.pushState({ tab: tabId }, t || '', url);
-            window.scrollTo({ top: 0 });
-
-            runPageScripts(doc, contentEl);
-            reinitAlpine(contentEl);
-            if (window.initScrollReveal) requestAnimationFrame(() => window.initScrollReveal(contentEl));
-
-        } catch (err) {
-            console.error('[Org SPA] Error:', err);
-            window.location.href = url;
-        } finally {
-            fadeIn();
-            hideProgress();
-        }
-    }
-
-    navLinks.forEach(link => {
-        link.addEventListener('click', function(e) {
-            if (this.getAttribute('target') === '_blank') return;
-            if (this.hasAttribute('data-no-spa')) return;
-            if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
-            e.preventDefault();
-            switchTab(this.dataset.tab, this.href);
-        });
-    });
-
-    window.__orgSpaNavigate = switchTab;
-    window.__orgSpaSetActive = setActive;
-
-    window.addEventListener('popstate', function(e) {
-        if (e.state && e.state.tab) {
-            switchTab(e.state.tab, window.location.href);
-        } else {
-            window.location.reload();
-        }
-    });
-})();
-</script>
+@include('partials.instant-nav')
 
 @stack('scripts')
 

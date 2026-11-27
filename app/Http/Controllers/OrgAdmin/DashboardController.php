@@ -61,7 +61,16 @@ class DashboardController extends Controller
 
         $organization = \App\Models\Organization::find($admin->organization_id);
 
-        return view('org.dashboard', compact('stats', 'districtWiseMembers', 'organization', 'totalMembers'));
+        $todo = [
+            'members' => $organization->pendingMemberCount(),
+            'requests' => $organization->areaRequests()->count(),
+            'camps' => \App\Models\BloodCamp::where('organization_id', $organization->id)
+                ->where('status', 'published')->where('start_at', '>=', now())->count(),
+            'empty_groups' => count(\App\Enums\BloodGroup::cases())
+                - \App\Models\BloodInventory::where('organization_id', $organization->id)->available()->count(),
+        ];
+
+        return view('org.dashboard', compact('stats', 'districtWiseMembers', 'organization', 'totalMembers', 'todo'));
     }
 
     /**
@@ -123,6 +132,7 @@ class DashboardController extends Controller
 
         $donor->save();
         $donor->notify(new DonorVerificationStatusNotification($request->status));
+        \App\Services\AuditLogger::log('org.nid.verify.' . ($request->status === 'verified' ? 'approve' : 'reject'), $donor, ['organization_id' => $admin->organization_id]);
 
         $message = $request->status === 'verified'
             ? 'ডোনারকে সফলভাবে ভেরিফাই করা হয়েছে এবং ব্লু ব্যাজ প্রদান করা হয়েছে।'

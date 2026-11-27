@@ -177,6 +177,17 @@ class AppServiceProvider extends ServiceProvider
             TrustProxies::at(array_map('trim', explode(',', (string) config('app.trusted_proxies'))));
         }
 
+        View::composer('layouts.org-dashboard', function ($view) {
+            $org = auth()->user()?->organization;
+
+            $view->with([
+                'orgPendingMembersCount' => $org?->pendingMemberCount() ?? 0,
+                'orgOpenRequestsCount' => $org
+                    ? $org->areaRequests()->whereNotIn('id', \App\Models\BroadcastLog::where('organization_id', $org->id)->select('blood_request_id'))->count()
+                    : 0,
+            ]);
+        });
+
         View::composer('layouts.admin-dashboard', function ($view) {
             $view->with([
                 'pendingClaimsCount' => \App\Models\BloodRequestResponse::whereIn('verification_status', ['claimed', 'disputed'])->count(),

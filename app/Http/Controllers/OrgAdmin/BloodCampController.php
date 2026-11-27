@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\OrgAdmin;
 
+use App\Services\AuditLogger;
 use App\Http\Controllers\Controller;
 use App\Models\BloodCamp;
 use App\Models\CampRegistration;
@@ -128,6 +129,7 @@ class BloodCampController extends Controller
         }
 
         $camp->update(['status' => 'published']);
+        AuditLogger::log('org.camp.publish', $camp);
 
         return back()->with('success', 'ক্যাম্প সফলভাবে পাবলিশ করা হয়েছে।');
     }
@@ -138,6 +140,7 @@ class BloodCampController extends Controller
         if ($camp->organization_id !== $admin->organization_id) abort(403);
 
         $camp->update(['status' => 'cancelled']);
+        AuditLogger::log('org.camp.cancel', $camp);
 
         return back()->with('success', 'ক্যাম্প বাতিল করা হয়েছে।');
     }

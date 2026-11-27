@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends(auth()->user()->dashboardLayout())
 
 @section('title', $subscription->patient_name . ' - দীর্ঘমেয়াদী সাবস্ক্রিপশন')
 

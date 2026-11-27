@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends(auth()->user()->dashboardLayout())
 
 @section('title', 'আমার দীর্ঘমেয়াদী রক্তদান পরিকল্পনা — রক্তদূত')
 

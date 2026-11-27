@@ -296,6 +296,17 @@ class User extends Authenticatable // implements MustVerifyEmail — আপা�
         return ($this->role?->value ?? null) === UserRole::ADMIN->value;
     }
 
+    /** The dashboard shell this user's own pages are shown in. */
+    public function dashboardLayout(): string
+    {
+        return match (true) {
+            $this->isAdmin() => 'layouts.admin-dashboard',
+            $this->isOrgAdmin() => 'layouts.org-dashboard',
+            $this->isDonor() => 'layouts.donor-dashboard',
+            default => 'layouts.user-dashboard',
+        };
+    }
+
     public function isOrgAdmin(): bool
     {
         return ($this->role?->value ?? null) === UserRole::ORG_ADMIN->value;

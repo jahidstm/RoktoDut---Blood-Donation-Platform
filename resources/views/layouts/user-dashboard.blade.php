@@ -209,9 +209,9 @@
         .scroll-reveal {
             opacity: 0;
             --sr-x: 0px;
-            --sr-y: 24px;
+            --sr-y: 8px;
             transform: translate3d(var(--sr-x), var(--sr-y), 0);
-            transition: opacity 0.45s ease-out, transform 0.45s ease-out;
+            transition: opacity 0.2s ease-out, transform 0.2s ease-out;
             will-change: opacity, transform;
         }
         .scroll-reveal.is-visible,
@@ -228,25 +228,6 @@
             }
         }
 
-        /* SPA Loading bar */
-        #user-spa-progress {
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            height: 2.5px;
-            background: linear-gradient(90deg, #dc2626, #f87171, #dc2626);
-            background-size: 200% 100%;
-            animation: user-shimmer 1s linear infinite;
-            z-index: 9999;
-            opacity: 0;
-            transition: opacity 0.15s;
-            pointer-events: none;
-        }
-        #user-spa-progress.active { opacity: 1; }
-        @keyframes user-shimmer {
-            0%   { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
-        #user-page-content { transition: opacity 0.18s ease; }
     </style>
 
     @stack('head')
@@ -314,6 +295,12 @@
            class="user-nav-item {{ request()->routeIs('requests.my-responses') ? 'active' : '' }}" data-tab="my-responses">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
             রিকোয়েস্টে সাড়া
+        </a>
+
+        <a href="{{ route('chronic.index') }}"
+           class="user-nav-item {{ request()->routeIs('chronic.*') ? 'active' : '' }}" data-tab="chronic">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            দীর্ঘমেয়াদী রোগী
         </a>
 
         <a href="{{ route('requests.index') }}"
@@ -422,9 +409,6 @@
 {{-- ── Shared Footer ── --}}
 @include('layouts.footer')
 
-{{-- SPA Progress Bar --}}
-<div id="user-spa-progress"></div>
-
 {{-- Toast container --}}
 <div id="notif-toast-container"
      class="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none"
@@ -445,172 +429,7 @@
     document.addEventListener('DOMContentLoaded', () => window.initScrollReveal());
 </script>
 
-{{-- SPA Navigation --}}
-<script>
-(function () {
-    'use strict';
-
-    const cache = {};
-    const navLinks = document.querySelectorAll('.user-nav-item[data-tab]');
-    const contentEl = document.getElementById('user-page-content');
-    const progressBar = document.getElementById('user-spa-progress');
-
-    if (!contentEl) return;
-
-    function setActive(tabId) {
-        navLinks.forEach(link => {
-            link.classList.toggle('active', link.dataset.tab === tabId);
-        });
-    }
-
-    function showProgress() { progressBar?.classList.add('active'); }
-    function hideProgress() { progressBar?.classList.remove('active'); }
-
-    function fadeOut() {
-        contentEl.style.opacity = '0.4';
-        contentEl.style.pointerEvents = 'none';
-    }
-
-    function fadeIn() {
-        contentEl.style.opacity = '1';
-        contentEl.style.pointerEvents = '';
-    }
-
-    function reinitAlpine(el) {
-        if (typeof Alpine === 'undefined') return;
-        el.querySelectorAll('[x-data]').forEach(node => {
-            if (node._x_dataStack) { try { Alpine.destroyTree(node); } catch {} }
-        });
-        try { Alpine.initTree(el); } catch {}
-    }
-
-    function runPageScripts(fetchedDoc, injectEl) {
-        const seen = new Set();
-        const exec = (code) => { try { new Function(code)(); } catch(e) { console.error(e); } };
-        const SKIP_SIGS = ['initScrollReveal', '__userSpaNavigate'];
-        const isSkip = (c) => SKIP_SIGS.some(s => c.includes(s));
-
-        injectEl.querySelectorAll('script:not([type="module"])').forEach(s => {
-            const c = s.textContent;
-            if (!c.trim() || seen.has(c) || isSkip(c)) return;
-            seen.add(c); exec(c);
-        });
-
-        if (fetchedDoc) {
-            fetchedDoc.body?.querySelectorAll('script:not([src]):not([type="module"])').forEach(s => {
-                const c = s.textContent;
-                if (!c.trim() || seen.has(c) || isSkip(c)) return;
-                seen.add(c); exec(c);
-            });
-        }
-    }
-
-    let currentTab = document.querySelector('.user-nav-item[data-tab].active')?.dataset?.tab || 'overview';
-
-    async function switchTab(tabId, url) {
-        if (tabId === currentTab && cache[tabId]) return;
-        currentTab = tabId;
-        setActive(tabId);
-
-        // Mobile: close sidebar after nav click
-        const bodyEl = document.querySelector('body[x-data]');
-        if (bodyEl && bodyEl._x_dataStack) {
-            try { bodyEl._x_dataStack[0].sidebarOpen = false; } catch {}
-        }
-
-        // Serve from cache instantly
-        if (typeof cache[tabId] === 'string') {
-            window.history.pushState({ tab: tabId }, '', url);
-            contentEl.innerHTML = cache[tabId];
-            window.scrollTo({ top: 0 });
-            runPageScripts(null, contentEl);
-            reinitAlpine(contentEl);
-            if (window.initScrollReveal) requestAnimationFrame(() => window.initScrollReveal(contentEl));
-            return;
-        }
-
-        showProgress();
-        fadeOut();
-
-        try {
-            const res = await fetch(url, {
-                headers: { 'Accept': 'text/html', 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'same-origin',
-                redirect: 'follow'
-            });
-
-            if (res.url.includes('/login')) { window.location.href = res.url; return; }
-
-            const html = await res.text();
-            const doc = new DOMParser().parseFromString(html, 'text/html');
-
-            let newHtml = '';
-            const panel = doc.querySelector(`[data-panel-id="${tabId}"]`);
-            if (panel) {
-                newHtml = panel.outerHTML;
-            } else {
-                const pageContent = doc.getElementById('user-page-content');
-                if (pageContent) {
-                    newHtml = pageContent.innerHTML;
-                } else {
-                    const fallbackMain = doc.querySelector('main');
-                    if (fallbackMain) {
-                        newHtml = fallbackMain.innerHTML;
-                    } else {
-                        window.location.href = url;
-                        return;
-                    }
-                }
-            }
-
-            cache[tabId] = newHtml;
-
-            contentEl.querySelectorAll('[x-data]').forEach(node => {
-                if (node._x_dataStack) { try { Alpine.destroyTree?.(node); } catch {} }
-            });
-
-            contentEl.innerHTML = newHtml;
-
-            const t = doc.querySelector('title')?.textContent;
-            if (t) document.title = t;
-
-            window.history.pushState({ tab: tabId }, t || '', url);
-            window.scrollTo({ top: 0 });
-
-            runPageScripts(doc, contentEl);
-            reinitAlpine(contentEl);
-            if (window.initScrollReveal) requestAnimationFrame(() => window.initScrollReveal(contentEl));
-
-        } catch (err) {
-            console.error('[User SPA] Error:', err);
-            window.location.href = url;
-        } finally {
-            fadeIn();
-            hideProgress();
-        }
-    }
-
-    navLinks.forEach(link => {
-        link.addEventListener('click', function(e) {
-            if (this.getAttribute('target') === '_blank') return;
-            if (this.hasAttribute('data-no-spa')) return;
-            if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
-            e.preventDefault();
-            switchTab(this.dataset.tab, this.href);
-        });
-    });
-
-    window.__userSpaNavigate = switchTab;
-    window.__userSpaSetActive = setActive;
-
-    window.addEventListener('popstate', function(e) {
-        if (e.state && e.state.tab) {
-            const link = document.querySelector(`.user-nav-item[data-tab="${e.state.tab}"]`);
-            if (link) switchTab(e.state.tab, link.href);
-        }
-    });
-})();
-</script>
+@include('partials.instant-nav')
 
 </body>
 </html>

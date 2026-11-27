@@ -47,6 +47,22 @@
         </div>
     </div>
 
+    {{-- What needs attention --}}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8 scroll-reveal" data-scroll-reveal>
+        @foreach([
+            ['members', route('org.members.index', ['status' => 'pending']), '🪪', 'যাচাই বাকি মেম্বার', 'border-amber-200', 'bg-amber-100', 'text-amber-600'],
+            ['requests', route('org.requests.index'), '🩸', 'এলাকার খোলা অনুরোধ', 'border-red-200', 'bg-red-100', 'text-red-600'],
+            ['camps', route('org.camps.index'), '🏕️', 'আসন্ন ক্যাম্প', 'border-teal-200', 'bg-teal-100', 'text-teal-600'],
+            ['empty_groups', route('org.inventory.index'), '📦', 'স্টক নেই এমন গ্রুপ', 'border-blue-200', 'bg-blue-100', 'text-blue-600'],
+        ] as [$key, $url, $icon, $label, $border, $tint, $ink])
+            <a href="{{ $url }}" class="bg-white rounded-2xl border {{ $todo[$key] > 0 ? $border : 'border-slate-200' }} shadow-sm p-4 flex flex-col items-center gap-2 text-center hover:shadow-md transition hover:-translate-y-0.5">
+                <span class="w-10 h-10 rounded-xl {{ $todo[$key] > 0 ? $tint : 'bg-slate-100' }} flex items-center justify-center text-xl">{{ $icon }}</span>
+                <span class="text-2xl font-black {{ $todo[$key] > 0 ? $ink : 'text-slate-400' }}">{{ $todo[$key] }}</span>
+                <span class="text-[11px] font-bold text-slate-500 leading-tight">{{ $label }}</span>
+            </a>
+        @endforeach
+    </div>
+
     {{-- District Chart --}}
     @if(isset($districtWiseMembers) && count($districtWiseMembers) > 0)
     <div class="mb-8 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm scroll-reveal" data-scroll-reveal>

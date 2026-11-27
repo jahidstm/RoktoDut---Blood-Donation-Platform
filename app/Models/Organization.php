@@ -67,6 +67,20 @@ class Organization extends Model
         return $this->members()->wherePivot('status', 'pending');
     }
 
+    /** Open requests this organisation can act on: its upazila, else its district. */
+    public function areaRequests()
+    {
+        return BloodRequest::active()
+            ->when($this->upazila, fn ($q) => $q->where('upazila_id', $this->upazila))
+            ->when(! $this->upazila && $this->district, fn ($q) => $q->where('district_id', $this->district));
+    }
+
+    /** Donors of this organisation still waiting for their identity check. */
+    public function pendingMemberCount(): int
+    {
+        return User::where('organization_id', $this->id)->where('role', 'donor')->where('nid_status', 'pending')->count();
+    }
+
     public function locationDistrict(): BelongsTo
     {
         return $this->belongsTo(District::class, 'district');

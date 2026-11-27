@@ -268,9 +268,9 @@
         .scroll-reveal {
             opacity: 0;
             --sr-x: 0px;
-            --sr-y: 24px;
+            --sr-y: 8px;
             transform: translate3d(var(--sr-x), var(--sr-y), 0);
-            transition: opacity 0.45s ease-out, transform 0.45s ease-out;
+            transition: opacity 0.2s ease-out, transform 0.2s ease-out;
             will-change: opacity, transform;
         }
         .scroll-reveal.is-visible,
@@ -361,6 +361,12 @@
            class="sidebar-nav-item {{ request()->routeIs('requests.my-requests') ? 'active' : '' }}" data-tab="my-requests">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
             আমার রিকোয়েস্ট
+        </a>
+
+        <a href="{{ route('chronic.index') }}"
+           class="sidebar-nav-item {{ request()->routeIs('chronic.*') ? 'active' : '' }}" data-tab="chronic">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            দীর্ঘমেয়াদী রোগী
         </a>
 
         <a href="{{ route('donor.my_buddies') }}"
@@ -511,232 +517,13 @@
     document.addEventListener('DOMContentLoaded', () => window.initScrollReveal());
 </script>
 
-{{-- Lenis smooth scroll --}}
-<script src="https://unpkg.com/@studio-freight/lenis@1.0.42/bundled/lenis.min.js"></script>
 <style>
-    /* SPA Loading bar */
-    #spa-progress {
-        position: fixed;
-        top: 0; left: 0; right: 0;
-        height: 2.5px;
-        background: linear-gradient(90deg, #dc2626, #f87171, #dc2626);
-        background-size: 200% 100%;
-        animation: spa-shimmer 1s linear infinite;
-        z-index: 9999;
-        opacity: 0;
-        transition: opacity 0.15s;
-        pointer-events: none;
-    }
-    #spa-progress.active { opacity: 1; }
-    @keyframes spa-shimmer {
-        0%   { background-position: 200% 0; }
-        100% { background-position: -200% 0; }
-    }
-    /* Content fade transition */
-    #page-content {
-        transition: opacity 0.18s ease;
-    }
-    
     /* Hide elements specific to dashboard view */
-    .donor-content .hide-in-dashboard {
-        display: none !important;
-    }
-
-    .donor-content .show-in-dashboard {
-        display: flex !important;
-    }
+    .donor-content .hide-in-dashboard { display: none !important; }
+    .donor-content .show-in-dashboard { display: flex !important; }
 </style>
 
-<div id="spa-progress"></div>
-
-<script>
-    (function () {
-    'use strict';
-
-    const cache = { overview: true }; // overview is already loaded natively
-
-    const tabLinks = document.querySelectorAll('.sidebar-nav-item[data-tab]');
-    const contentEl = document.getElementById('page-content');
-    const progressBar = document.getElementById('spa-progress');
-    const titleEl = document.querySelector('.donor-header h1');
-
-    function setActiveTab(tabId) {
-        tabLinks.forEach(link => {
-            if (link.dataset.tab === tabId) {
-                link.classList.add('active');
-            } else {
-                link.classList.remove('active');
-            }
-        });
-    }
-
-    function showProgress() { progressBar?.classList.add('active'); }
-    function hideProgress() { progressBar?.classList.remove('active'); }
-
-    function fadeOut() {
-        if (!contentEl) return;
-        contentEl.style.opacity = '0.4';
-        contentEl.style.pointerEvents = 'none';
-    }
-    
-    function fadeIn() {
-        if (!contentEl) return;
-        contentEl.style.opacity = '1';
-        contentEl.style.pointerEvents = '';
-    }
-
-    // Re-init Alpine helper
-    function reinitAlpine(el) {
-        if (typeof Alpine === 'undefined') return;
-        el.querySelectorAll('[x-data]').forEach(node => {
-            if (node._x_dataStack) { try { Alpine.destroyTree(node); } catch {} }
-        });
-        try { Alpine.initTree(el); } catch {}
-    }
-
-    function runPageScripts(fetchedDoc, injectEl) {
-        const seen = new Set();
-        const execCode = (code) => {
-            try { new Function(code)(); } catch(e) { console.error(e); }
-        };
-
-        const LAYOUT_SIGS = ['Lenis', 'initScrollReveal', '__spaNavigate'];
-        const isLayoutScript = (code) => LAYOUT_SIGS.some(s => code.includes(s));
-
-        injectEl.querySelectorAll('script:not([type="module"])').forEach(s => {
-            const c = s.textContent;
-            if (!c.trim() || seen.has(c) || isLayoutScript(c)) return;
-            seen.add(c); execCode(c);
-        });
-
-        if (fetchedDoc) {
-            fetchedDoc.body?.querySelectorAll('script:not([src]):not([type="module"])').forEach(s => {
-                const c = s.textContent;
-                if (!c.trim() || seen.has(c) || isLayoutScript(c)) return;
-                seen.add(c); execCode(c);
-            });
-        }
-    }
-
-    let currentTab = document.querySelector('.sidebar-nav-item[data-tab].active')?.dataset?.tab || 'overview';
-
-    async function switchTab(tabId, url) {
-        if (tabId === currentTab) return;
-        
-        currentTab = tabId;
-        setActiveTab(tabId);
-
-        // If in cache, render instantly
-        if (typeof cache[tabId] === 'string') {
-            contentEl.innerHTML = cache[tabId];
-            history.pushState({ tabId, url }, '', url);
-            window.scrollTo({ top: 0 });
-            document.querySelector('.donor-content')?.scrollTo?.({ top: 0 });
-            runPageScripts(null, contentEl);
-            reinitAlpine(contentEl);
-            if (window.initScrollReveal) {
-                requestAnimationFrame(() => window.initScrollReveal(contentEl));
-            }
-            return;
-        }
-
-        showProgress();
-        fadeOut();
-
-        try {
-            const res = await fetch(url, {
-                headers: { 'Accept': 'text/html', 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'same-origin',
-                redirect: 'follow'
-            });
-
-            if (res.url.includes('/login') || res.url.includes('/onboarding')) {
-                window.location.href = res.url;
-                return;
-            }
-
-            const html = await res.text();
-            const doc = new DOMParser().parseFromString(html, 'text/html');
-
-            // Find the panel specifically
-            let newContentHtml = '';
-            const panel = doc.querySelector(`[data-panel-id="${tabId}"]`);
-            if (panel) {
-                newContentHtml = panel.outerHTML;
-            } else {
-                const pageContent = doc.getElementById('page-content');
-                if (pageContent) {
-                    newContentHtml = pageContent.innerHTML;
-                } else {
-                    window.location.href = url;
-                    return;
-                }
-            }
-
-            // Save to cache
-            cache[tabId] = newContentHtml;
-
-            // Destroy old alpine
-            contentEl.querySelectorAll('[x-data]').forEach(node => {
-                if (node._x_dataStack) { try { Alpine.destroyTree?.(node); } catch {} }
-            });
-
-            contentEl.innerHTML = newContentHtml;
-
-            // Update URL in browser address bar (no reload)
-            history.pushState({ tabId, url }, '', url);
-
-            // Update title
-            const t = doc.querySelector('title')?.textContent;
-            if (t) document.title = t;
-            
-            const spaTitle = doc.querySelector('[data-spa-title]')?.textContent?.trim()
-                || doc.querySelector('#page-content h1, #page-content h2')?.textContent?.trim();
-            if (titleEl && spaTitle) titleEl.textContent = spaTitle;
-
-            window.scrollTo({ top: 0 });
-            document.querySelector('.donor-content')?.scrollTo?.({ top: 0 });
-
-            runPageScripts(doc, contentEl);
-            reinitAlpine(contentEl);
-            if (window.initScrollReveal) {
-                requestAnimationFrame(() => window.initScrollReveal(contentEl));
-            }
-
-        } catch (err) {
-            console.error('[SPA] fetch error, hard-navigating:', err);
-            window.location.href = url;
-        } finally {
-            fadeIn();
-            hideProgress();
-        }
-    }
-
-    tabLinks.forEach(link => {
-        link.addEventListener('click', function (e) {
-            // Ignore links with target="_blank" or specific escape hatches
-            if (this.getAttribute('target') === '_blank') return;
-            if (this.hasAttribute('data-no-spa')) return;
-            if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
-            
-            e.preventDefault();
-            switchTab(this.dataset.tab, this.href);
-        });
-    });
-
-    // Expose for layout-level helpers (e.g., Offline Claim)
-    window.__spaNavigate = switchTab;
-    window.__spaSetActiveTab = setActiveTab;
-
-    // Handle browser back/forward buttons
-    window.addEventListener('popstate', function(e) {
-        if (e.state?.tabId && e.state?.url) {
-            switchTab(e.state.tabId, e.state.url);
-        }
-    });
-
-})();
-</script>
+@include('partials.instant-nav')
 
 @include('layouts.chatbot-widget')
 
