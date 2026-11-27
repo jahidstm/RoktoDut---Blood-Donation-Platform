@@ -26,8 +26,8 @@ function showToast(message, title = '🔔 নতুন নোটিফিকে�
             </svg>
         </div>
         <div class="flex-1 min-w-0">
-            <p class="text-sm font-black text-slate-900">${title}</p>
-            <p class="text-xs text-slate-500 mt-0.5 leading-snug line-clamp-2">${message}</p>
+            <p class="js-toast-title text-sm font-black text-slate-900"></p>
+            <p class="js-toast-message text-xs text-slate-500 mt-0.5 leading-snug line-clamp-2"></p>
         </div>
         <button onclick="this.parentElement.remove()"
                 class="shrink-0 text-slate-300 hover:text-slate-500 transition mt-0.5">
@@ -35,6 +35,10 @@ function showToast(message, title = '🔔 নতুন নোটিফিকে�
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
             </svg>
         </button>`;
+
+    // textContent, never innerHTML: these strings contain other users' names.
+    toast.querySelector('.js-toast-title').textContent = title;
+    toast.querySelector('.js-toast-message').textContent = message;
 
     container.appendChild(toast);
 

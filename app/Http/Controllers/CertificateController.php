@@ -6,7 +6,6 @@ use App\Models\Donation;
 use Illuminate\Support\Facades\File;
 use Intervention\Image\ImageManager;
 use Intervention\Image\Drivers\Gd\Driver;
-use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 /**
  * CertificateController
@@ -199,7 +198,7 @@ class CertificateController extends Controller
         $qrTempPath = storage_path("app/temp-qr-cert-{$donation->id}.png");
 
         try {
-            QrCode::format('png')->size(self::QR_SIZE)->margin(1)->generate($verifyUrl, $qrTempPath);
+            \App\Support\QrPng::save($verifyUrl, $qrTempPath, self::QR_SIZE, 1);
 
             if (File::exists($qrTempPath)) {
                 // White padding box behind QR for visibility on dark background

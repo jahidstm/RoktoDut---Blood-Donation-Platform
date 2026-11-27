@@ -86,7 +86,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {{-- 🏥 Hospital Autocomplete (Alpine.js) --}}
                 <div
-                    x-data="hospitalAutocomplete({{ old('hospital_id') ?? 'null' }}, '{{ old('hospital_display', '') }}')"
+                    x-data="hospitalAutocomplete({{ (int) old('hospital_id') ?: 'null' }}, {{ \Illuminate\Support\Js::from((string) old('hospital_display', '')) }})"
                     @rd-set-hospital.window="select($event.detail)"
                     class="relative"
                 >
@@ -232,7 +232,8 @@
                 </div>
             </div>
 
-            {{-- 🛡️ ওয়ান-ওয়ে হ্যান্ডশেক: প্রাইভেসি অপশন --}}
+            {{-- 🛡️ ওয়ান-ওয়ে হ্যান্ডশেক: প্রাইভেসি অপশন। Guest-দের জন্য নয়: ডোনারের নম্বর পাঠানোর মতো Telegram account নেই। --}}
+            @auth
             <div class="rounded-2xl border border-purple-200 bg-purple-50 p-4 flex items-start gap-4">
                 <div class="pt-0.5 shrink-0">
                     <input type="checkbox" name="is_phone_hidden" id="is_phone_hidden" value="1"
@@ -251,6 +252,7 @@
                     @endif
                 </label>
             </div>
+            @endauth
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>

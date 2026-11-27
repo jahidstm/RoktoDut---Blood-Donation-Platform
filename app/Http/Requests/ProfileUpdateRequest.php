@@ -31,7 +31,7 @@ class ProfileUpdateRequest extends FormRequest
                 Rule::unique(User::class)->ignore($this->user()->id),
             ],
             // 🚀 নতুন ফিল্ডগুলোর ভ্যালিডেশন
-            'phone' => ['nullable', 'string', 'max:20', Rule::unique(User::class)->ignore($this->user()->id)],
+            'phone' => ['nullable', 'string', 'max:20', 'regex:/^[0-9০-৯+\- ]{6,20}$/u', Rule::unique(User::class)->ignore($this->user()->id)],
             'blood_group' => ['nullable', 'string'],
             'division_id' => ['nullable', 'exists:divisions,id'],
             'district_id' => ['nullable', 'exists:districts,id'],

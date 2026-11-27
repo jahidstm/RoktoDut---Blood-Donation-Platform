@@ -39,3 +39,4 @@ mlruns/
 # Local database backups (contain user data; never commit)
 /storage/backups/
 *.sql
+/public/images/smart-card-*-template.png

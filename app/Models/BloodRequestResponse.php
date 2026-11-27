@@ -38,7 +38,7 @@ class BloodRequestResponse extends Model
     {
         static::creating(function ($response) {
             // ৪-ডিজিটের একটি ইউনিক পিন জেনারেট করা (যেমন: 0542)
-            $response->verification_pin = str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
+            $response->verification_pin = str_pad(random_int(0, 9999), 4, '0', STR_PAD_LEFT);
 
             // ডিফল্ট স্ট্যাটাস সেট করা (যদি মাইগ্রেশনে না থাকে)
             if (empty($response->verification_status)) {
