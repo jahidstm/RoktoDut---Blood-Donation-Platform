@@ -92,6 +92,13 @@ class BloodRequest extends Model
     /**
      * Reports on this request
      */
+    /** Requests with spam reports an admin has not decided on yet (the Spam Radar queue). */
+    public function scopeAwaitingSpamReview($query)
+    {
+        return $query->whereHas('spamReports', fn ($q) => $q->where('status', 'pending')
+            ->whereIn('reason', ['fake_number', 'spam', 'abusive']));
+    }
+
     public function spamReports()
     {
         return $this->hasMany(BloodRequestReport::class, 'blood_request_id');

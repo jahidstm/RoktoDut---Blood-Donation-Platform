@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\AuditLogger;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Ambulance;
@@ -34,6 +35,7 @@ class AmbulanceManagementController extends Controller
         }
         
         $ambulance->update(['is_verified' => true]);
+        AuditLogger::log('admin.ambulance.verify', $ambulance);
         
         if ($ambulance->added_by) {
             $user = $ambulance->adder;
@@ -48,6 +50,7 @@ class AmbulanceManagementController extends Controller
     public function destroy(Ambulance $ambulance)
     {
         $ambulance->delete();
+        AuditLogger::log('admin.ambulance.delete', $ambulance);
         return back()->with('success', 'অ্যাম্বুলেন্স ডিলিট করা হয়েছে।');
     }
 }

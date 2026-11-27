@@ -57,17 +57,16 @@ class AdminDashboardController extends Controller
         // 🎯 ৫. যেসব ক্লেইম ভেরিফাই করার জন্য পেন্ডিং আছে বা ডিসপুট করা হয়েছে
         $pendingClaims = BloodRequestResponse::whereIn('verification_status', ['claimed', 'disputed'])->count();
 
-        // 🏅 ৫. পেন্ডিং NID ভেরিফিকেশন (System Admin Review - Only org-less users)
+        // 🏅 ৫. পেন্ডিং NID ভেরিফিকেশন (same set as the review page)
         $pendingNids = User::where('nid_status', 'pending')
             ->whereNotNull('nid_path')
-            ->whereNull('organization_id')
             ->count();
 
         // 🏢 ৭. Pending Organization Applications
         $pendingOrgs = \App\Models\Organization::where('status', 'pending')->count();
 
         // 📑 ৮. Recent Audit Logs
-        $recentAuditLogs = \App\Models\AdminAuditLog::with('admin')
+        $recentAuditLogs = \App\Models\AuditLog::with('actor:id,name')
             ->orderBy('created_at', 'desc')
             ->limit(20)
             ->get();
@@ -92,7 +91,10 @@ class AdminDashboardController extends Controller
         $pendingReports = \App\Models\Report::where('status', 'open')->count();
 
         // 🚑 ১৩. Pending Ambulances
-        $pendingAmbulances = \App\Models\Ambulance::where('is_verified', false)->count();
+        $pendingAmbulances = \App\Models\Ambulance::where('status', 'active')->where('is_verified', false)->count();
+
+        $openRiskFlags = \App\Models\RequestRiskFlag::where('status', \App\Models\RequestRiskFlag::OPEN)->count();
+        $pendingSpam = BloodRequest::awaitingSpamReview()->count();
 
         return view('admin.dashboard', compact(
             'totalUsers',
@@ -112,7 +114,9 @@ class AdminDashboardController extends Controller
             'pendingSupportMessages',
             'pendingHospitals',
             'pendingReports',
-            'pendingAmbulances'
+            'pendingAmbulances',
+            'openRiskFlags',
+            'pendingSpam'
         ));
     }
 
@@ -288,6 +292,7 @@ class AdminDashboardController extends Controller
             }
 
             $this->logAudit('org_approve', $organization->id, \App\Models\Organization::class);
+            AuditLogger::log('admin.org.approve', $organization);
             return back()->with('success', "✅ {$organization->name} সফলভাবে অ্যাপ্রুভ করা হয়েছে।");
         } else {
             $organization->is_verified = false;
@@ -302,6 +307,8 @@ class AdminDashboardController extends Controller
             $this->logAudit('org_reject', $organization->id, \App\Models\Organization::class, [
                 'reason' => $request->input('rejection_reason')
             ]);
+            AuditLogger::log('admin.org.reject', $organization, ['reason' => $request->input('rejection_reason')]);
+
             return back()->with('error', "❌ {$organization->name} এর আবেদন বাতিল করা হয়েছে।");
         }
     }

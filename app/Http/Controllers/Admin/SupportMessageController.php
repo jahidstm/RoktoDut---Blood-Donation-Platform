@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\AuditLogger;
 use App\Http\Controllers\Controller;
 use App\Models\ContactMessage;
 use App\Models\User;
@@ -75,6 +76,8 @@ class SupportMessageController extends Controller
         ]);
 
         $message->update(['status' => $validated['status']]);
+
+        AuditLogger::log('admin.support.status', $message, ['status' => $validated['status']]);
 
         $statusLabel = $message->fresh()->status_label;
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\AuditLogger;
 use App\Http\Controllers\Controller;
 use App\Models\ChronicRequestSubscription;
 use Illuminate\Http\Request;
@@ -54,6 +55,8 @@ class AdminChronicController extends Controller
             ]);
             $msg = 'সাবস্ক্রিপশন নিষ্ক্রিয় করা হয়েছে।';
         }
+
+        AuditLogger::log('admin.chronic.' . ($action === 'activate' ? 'activate' : 'deactivate'), $subscription);
 
         return back()->with('success', $msg);
     }

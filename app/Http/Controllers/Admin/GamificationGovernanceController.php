@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\AuditLogger;
 use App\Http\Controllers\Controller;
 use App\Models\Badge;
 use App\Models\PointLog;
@@ -107,6 +108,8 @@ class GamificationGovernanceController extends Controller
             'is_shadowbanned' => $newStatus,
         ]);
 
+        AuditLogger::log('admin.user.' . ($newStatus ? 'shadowban' : 'unshadowban'), $user);
+
         $msg = $newStatus
             ? "✅ {$user->name}-কে লিডারবোর্ড থেকে শ্যাডোব্যান করা হয়েছে।"
             : "✅ {$user->name}-এর শ্যাডোব্যান তুলে নেওয়া হয়েছে।";
@@ -151,6 +154,8 @@ class GamificationGovernanceController extends Controller
             'points'         => $points,
             'reason'         => $reason,
         ]);
+
+        AuditLogger::log('admin.user.points_adjust', $user, ['points' => $points, 'reason' => $reason]);
 
         $sign = $points > 0 ? '+' : '';
         return back()->with('success', "✅ {$user->name}-কে {$sign}{$points} পয়েন্ট অ্যাডজাস্ট করা হয়েছে।");
@@ -198,6 +203,8 @@ class GamificationGovernanceController extends Controller
             $user->badges()->detach($badge->id);
             $msg = "✅ '{$badge->bn_name}' ব্যাজ {$user->name}-এর কাছ থেকে সরিয়ে নেওয়া হয়েছে।";
         }
+
+        AuditLogger::log('admin.user.badge_' . $data['action'], $user, ['badge_id' => $badge->id]);
 
         Log::info('[GamificationGovernance] Badge assignment changed.', [
             'target_user_id' => $user->id,

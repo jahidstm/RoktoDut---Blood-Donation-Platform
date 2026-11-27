@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AuditLogger;
 use App\Models\Hospital;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -128,6 +129,8 @@ class HospitalController extends Controller
             $hospital->delete();
         });
 
+        AuditLogger::log('admin.hospital.merge', $hospital, ['name' => $hospital->name, 'into_id' => $target->id]);
+
         Cache::flush();
         return back()->with('success', "✅ মার্জ সম্পন্ন! '{$hospital->name}' → '{$target->name}' এ সফলভাবে মার্জ হয়েছে।");
     }
@@ -147,6 +150,7 @@ class HospitalController extends Controller
             'name_bn'     => $request->name_bn,
             'is_verified' => true,
         ]);
+        AuditLogger::log('admin.hospital.verify', $hospital, ['name' => $hospital->name]);
 
         Cache::flush();
         return back()->with('success', "✅ '{$hospital->name}' সফলভাবে ভেরিফাই করা হয়েছে।");
@@ -167,6 +171,7 @@ class HospitalController extends Controller
             ->update(['hospital_id' => null]);
 
         $hospital->delete();
+        AuditLogger::log('admin.hospital.reject', $hospital, ['name' => $name]);
         Cache::flush();
 
         return back()->with('success', "🗑️ '{$name}' প্রত্যাখ্যান করা হয়েছে। সংশ্লিষ্ট রিকোয়েস্টগুলো অক্ষত আছে।");

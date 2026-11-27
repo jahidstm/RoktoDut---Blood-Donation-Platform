@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AuditLogger;
 use App\Models\BloodRequestResponse;
 use App\Models\User;
 use App\Notifications\AdminTaskNotification;
@@ -234,11 +235,14 @@ class DonationClaimController extends Controller
                 }
             }
 
+            AuditLogger::log('admin.donation.verify', $response);
+
             return back()->with('success', '✅ অ্যাপ্রুভ করা হয়েছে। ডোনারকে পয়েন্ট ও ব্যাজ দেওয়া হয়েছে।');
         }
 
         if ($request->status === 'rejected') {
             $response->update(['verification_status' => 'rejected']);
+            AuditLogger::log('admin.donation.reject', $response);
             
             if ($response->user) {
                 // We use 'disputed' message since it essentially means rejected/invalid

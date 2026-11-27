@@ -6,7 +6,14 @@
 <div data-panel-id="audit-logs" class="max-w-7xl mx-auto px-4 py-8">
     <div class="mb-6">
         <h1 class="text-2xl font-extrabold text-slate-900">Audit Logs</h1>
-        <p class="text-sm font-semibold text-slate-500 mt-1">Admin/Org actions tracking timeline</p>
+        <p class="text-sm font-semibold text-slate-500 mt-1">কে, কখন, কী করেছেন তার তালিকা</p>
+    </div>
+
+    <div class="mb-4 flex flex-wrap gap-2">
+        @foreach(['' => 'সব'] + $areas as $key => $label)
+            <a href="{{ route('admin.audit-logs.index', $key ? ['area' => $key] : []) }}"
+               class="rounded-xl border px-4 py-2 text-xs font-bold transition {{ (string) $area === $key ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300' }}">{{ $label }}</a>
+        @endforeach
     </div>
 
     <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\AuditLogger;
 use App\Http\Controllers\Controller;
 use App\Models\Donation;
 use App\Models\Post;
@@ -120,6 +121,8 @@ class BlogModerationController extends Controller
             $post->author->notify(new BlogPostModeratedNotification($post, 'approved'));
         });
 
+        AuditLogger::log('admin.blog.approve', $post);
+
         $label = $post->isSuccessStory()
             ? '✅ সাফল্যের গল্পটি প্রকাশিত হয়েছে'
             : '✅ স্বাস্থ্য ব্লগটি প্রকাশিত হয়েছে';
@@ -166,6 +169,7 @@ class BlogModerationController extends Controller
             // Notify the author with the rejection reason
             $post->author->notify(new BlogPostModeratedNotification($post, 'rejected', $request->rejection_reason));
         });
+        AuditLogger::log('admin.blog.reject', $post, ['reason' => $request->rejection_reason]);
 
         return redirect()
             ->route('admin.blog.moderation.index')

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AuditLogger;
 use App\Models\OfflineDonationClaim;
 use App\Services\OfflineClaimService;
 use Illuminate\Http\Request;
@@ -49,6 +50,7 @@ class ClaimVerificationController extends Controller
     public function adminApprove(Request $request, OfflineDonationClaim $claim)
     {
         $this->offlineClaimService->approveByAdmin($claim, $request->user());
+        AuditLogger::log('admin.offline_claim.approve', $claim);
 
         return back()->with('success', 'অফলাইন ডোনেশন ক্লেইম অনুমোদন করা হয়েছে।');
     }

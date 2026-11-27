@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Services\AuditLogger;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\BloodRequest;
@@ -16,10 +17,7 @@ class SpamRadarController extends Controller
     {
         // Get blood requests that have pending spam reports.
         // We will group them by blood_request to easily review them.
-        $suspectedRequests = BloodRequest::whereHas('spamReports', function ($query) {
-                $query->where('status', 'pending')
-                      ->whereIn('reason', ['fake_number', 'spam', 'abusive']);
-            })
+        $suspectedRequests = BloodRequest::awaitingSpamReview()
             ->with(['requester:id,name,phone,spam_strikes,is_shadowbanned', 'spamReports' => function($q) {
                 $q->where('status', 'pending')
                   ->whereIn('reason', ['fake_number', 'spam', 'abusive'])
@@ -62,6 +60,8 @@ class SpamRadarController extends Controller
         // Notify user about the strike/ban
         $requester->notify(new SpamStrikeWarningNotification($requester->spam_strikes, $requester->is_shadowbanned));
 
+        AuditLogger::log('admin.spam.strike', $bloodRequest, ['requester_id' => $requester->id, 'strikes' => $requester->spam_strikes]);
+
         return back()->with('success', "স্ট্রাইক অ্যাপ্রুভ করা হয়েছে। ইউজারের বর্তমান স্ট্রাইক: {$requester->spam_strikes}");
     }
 
@@ -81,6 +81,8 @@ class SpamRadarController extends Controller
             'is_hidden' => false,
             'spam_report_count' => 0
         ]);
+
+        AuditLogger::log('admin.spam.reports_rejected', $bloodRequest);
 
         return back()->with('success', 'রিপোর্টগুলো বাতিল করা হয়েছে এবং রিকোয়েস্টটি ফিডে রিস্টোর করা হয়েছে।');
     }

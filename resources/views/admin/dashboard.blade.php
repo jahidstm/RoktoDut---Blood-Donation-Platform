@@ -51,7 +51,7 @@
 
     {{-- ⚡ পেন্ডিং অ্যাকশন সেন্টার --}}
     @php
-        $totalPending = ($pendingClaims ?? 0) + ($pendingNids ?? 0) + ($pendingOrgs ?? 0) + ($pendingHospitals ?? 0) + ($pendingBlogCount ?? 0) + ($pendingReports ?? 0) + ($pendingSupportMessages ?? 0) + ($pendingAmbulances ?? 0);
+        $totalPending = ($pendingClaims ?? 0) + ($pendingNids ?? 0) + ($pendingOrgs ?? 0) + ($pendingHospitals ?? 0) + ($pendingBlogCount ?? 0) + ($pendingReports ?? 0) + ($pendingSupportMessages ?? 0) + ($pendingAmbulances ?? 0) + ($openRiskFlags ?? 0) + ($pendingSpam ?? 0);
     @endphp
 
     @if($totalPending > 0)
@@ -67,7 +67,7 @@
     @endif
 
     {{-- পেন্ডিং আইটেম কার্ডস --}}
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-10 scroll-reveal" data-scroll-reveal>
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-10 scroll-reveal" data-scroll-reveal>
 
         {{-- পেন্ডিং ক্লেইম --}}
         <a href="{{ route('admin.donations.proof_reviews') }}" class="group relative bg-white rounded-2xl border {{ ($pendingClaims ?? 0) > 0 ? 'border-red-200 shadow-red-50' : 'border-slate-200' }} shadow-sm p-4 flex flex-col items-center gap-2 text-center hover:shadow-md transition hover:-translate-y-0.5">
@@ -149,6 +149,27 @@
             @endif
         </a>
 
+
+        {{-- সন্দেহজনক রিকোয়েস্ট --}}
+        <a href="{{ route('admin.risk.index') }}" class="group relative bg-white rounded-2xl border {{ ($openRiskFlags ?? 0) > 0 ? 'border-amber-200 shadow-amber-50' : 'border-slate-200' }} shadow-sm p-4 flex flex-col items-center gap-2 text-center hover:shadow-md transition hover:-translate-y-0.5">
+            <div class="w-10 h-10 rounded-xl {{ ($openRiskFlags ?? 0) > 0 ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-400' }} flex items-center justify-center text-xl">🔎</div>
+            <span class="text-2xl font-black {{ ($openRiskFlags ?? 0) > 0 ? 'text-amber-600' : 'text-slate-400' }}">{{ $openRiskFlags ?? 0 }}</span>
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wide leading-tight">সন্দেহজনক রিকোয়েস্ট</span>
+            @if(($openRiskFlags ?? 0) > 0)
+                <span class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-amber-500 rounded-full border-2 border-white animate-pulse"></span>
+            @endif
+        </a>
+
+        {{-- স্প্যাম রিপোর্ট --}}
+        <a href="{{ route('admin.spam-radar.index') }}" class="group relative bg-white rounded-2xl border {{ ($pendingSpam ?? 0) > 0 ? 'border-red-200 shadow-red-50' : 'border-slate-200' }} shadow-sm p-4 flex flex-col items-center gap-2 text-center hover:shadow-md transition hover:-translate-y-0.5">
+            <div class="w-10 h-10 rounded-xl {{ ($pendingSpam ?? 0) > 0 ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-400' }} flex items-center justify-center text-xl">🚫</div>
+            <span class="text-2xl font-black {{ ($pendingSpam ?? 0) > 0 ? 'text-red-600' : 'text-slate-400' }}">{{ $pendingSpam ?? 0 }}</span>
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wide leading-tight">স্প্যাম রিপোর্ট</span>
+            @if(($pendingSpam ?? 0) > 0)
+                <span class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+            @endif
+        </a>
+
     </div>
 
     {{-- 🔒 ৫. সিকিউরিটি ও অডিট প্যানেল --}}
@@ -209,6 +230,7 @@
                     </h3>
                     <p class="text-xs text-slate-500 font-bold mt-1">সর্বশেষ ২০টি অ্যাকশন</p>
                 </div>
+                <a href="{{ route('admin.audit-logs.index') }}" class="text-xs font-bold text-indigo-600 hover:underline">সব দেখুন →</a>
             </div>
             <div class="p-0 flex-1 overflow-y-auto">
                 @if($recentAuditLogs->isEmpty())
@@ -221,21 +243,21 @@
                         @foreach($recentAuditLogs as $audit)
                             <li class="p-4 hover:bg-slate-50 transition flex items-start gap-3">
                                 <div class="w-8 h-8 rounded-full bg-slate-100 text-indigo-600 flex items-center justify-center font-black text-xs shrink-0 border border-slate-200">
-                                    {{ mb_substr($audit->admin->name ?? 'A', 0, 1) }}
+                                    {{ mb_substr($audit->actor->name ?? 'S', 0, 1) }}
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <div class="flex justify-between items-start mb-0.5">
-                                        <p class="text-sm font-extrabold text-slate-900 truncate pr-2">{{ $audit->admin->name ?? 'System Admin' }}</p>
+                                        <p class="text-sm font-extrabold text-slate-900 truncate pr-2">{{ $audit->actor->name ?? 'System' }}</p>
                                         <span class="text-[10px] font-bold text-slate-400 whitespace-nowrap shrink-0">{{ $audit->created_at->diffForHumans() }}</span>
                                     </div>
                                     <div class="text-xs font-semibold text-slate-500 mb-1.5 flex items-center gap-1.5 flex-wrap">
-                                        <span class="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100 uppercase tracking-wider text-[9px]">{{ str_replace('_', ' ', $audit->action_type) }}</span>
+                                        <span class="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100 uppercase tracking-wider text-[9px]">{{ str_replace(['.', '_'], ' ', $audit->action) }}</span>
                                         @if($audit->target_id)
                                             <span>টার্গেট আইডি: <strong class="text-slate-700">{{ $audit->target_id }}</strong></span>
                                         @endif
                                     </div>
-                                    @if(isset($audit->details['reason']))
-                                        <p class="text-xs font-medium text-red-600 bg-red-50 p-2 rounded border border-red-100 mt-1">কারণ: {{ $audit->details['reason'] }}</p>
+                                    @if(!empty($audit->metadata['reason']))
+                                        <p class="text-xs font-medium text-red-600 bg-red-50 p-2 rounded border border-red-100 mt-1">কারণ: {{ $audit->metadata['reason'] }}</p>
                                     @endif
                                 </div>
                             </li>

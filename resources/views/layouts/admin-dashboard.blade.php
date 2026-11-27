@@ -207,9 +207,9 @@
         /* ── Scroll Reveal ── */
         .scroll-reveal {
             opacity: 0;
-            --sr-y: 20px;
+            --sr-y: 8px;
             transform: translateY(var(--sr-y));
-            transition: opacity 0.45s ease-out, transform 0.45s ease-out;
+            transition: opacity 0.2s ease-out, transform 0.2s ease-out;
             will-change: opacity, transform;
         }
         .scroll-reveal.is-visible,
@@ -223,25 +223,6 @@
             }
         }
 
-        /* SPA Loading bar */
-        #admin-spa-progress {
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            height: 2.5px;
-            background: linear-gradient(90deg, #2563eb, #60a5fa, #2563eb);
-            background-size: 200% 100%;
-            animation: admin-shimmer 1s linear infinite;
-            z-index: 9999;
-            opacity: 0;
-            transition: opacity 0.15s;
-            pointer-events: none;
-        }
-        #admin-spa-progress.active { opacity: 1; }
-        @keyframes admin-shimmer {
-            0%   { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
-        #admin-page-content { transition: opacity 0.18s ease; }
     </style>
 
     @stack('head')
@@ -353,17 +334,17 @@
                class="admin-nav-item {{ request()->routeIs('admin.spam-radar.*') ? 'active' : '' }}" data-tab="spam-radar">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
                 স্প্যাম রাডার
+                @if(($pendingSpamCount ?? 0) > 0)
+                    <span class="admin-nav-badge">{{ $pendingSpamCount }}</span>
+                @endif
             </a>
 
-            @php
-                try { $openRiskFlags = \App\Models\RequestRiskFlag::where('status', 'open')->count(); } catch (\Throwable $e) { $openRiskFlags = 0; }
-            @endphp
             <a href="{{ route('admin.risk.index') }}"
                class="admin-nav-item {{ request()->routeIs('admin.risk.*') ? 'active' : '' }}" data-tab="risk-queue">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h18M6 9h12M10 14h4M11 19h2"/></svg>
                 সন্দেহজনক রিকোয়েস্ট
-                @if($openRiskFlags > 0)
-                    <span class="admin-nav-badge">{{ $openRiskFlags }}</span>
+                @if(($openRiskFlagsCount ?? 0) > 0)
+                    <span class="admin-nav-badge">{{ $openRiskFlagsCount }}</span>
                 @endif
             </a>
 
@@ -486,9 +467,6 @@
 {{-- ── Shared Footer ── --}}
 @include('layouts.footer')
 
-{{-- SPA Progress Bar --}}
-<div id="admin-spa-progress"></div>
-
 {{-- Scroll Reveal --}}
 <script>
     window.initScrollReveal = function(root = document) {
@@ -502,168 +480,24 @@
     document.addEventListener('DOMContentLoaded', () => window.initScrollReveal());
 </script>
 
-{{-- SPA Navigation --}}
+{{-- The browser loads a sidebar page as soon as the pointer rests on its link, so the click
+     is instant and every page runs its own scripts normally. Browsers without support simply
+     navigate as usual. Only list pages here: opening a detail page can change data.
+     The map is only prefetched, so its entry animation still plays when it opens. --}}
+<script type="speculationrules">
+{
+    "prerender": [{ "where": { "selector_matches": "a[data-tab]:not([data-tab=heatmap])" }, "eagerness": "moderate" }],
+    "prefetch":  [{ "where": { "selector_matches": "a[data-tab=heatmap]" }, "eagerness": "moderate" }]
+}
+</script>
+
+{{-- A full page load resets the sidebar scroll; keep the current item in view. --}}
 <script>
-(function () {
-    'use strict';
-
-    const cache = {};
-    const navLinks = document.querySelectorAll('.admin-nav-item[data-tab]');
-    const contentEl = document.getElementById('admin-page-content');
-    const progressBar = document.getElementById('admin-spa-progress');
-
-    function setActive(tabId) {
-        navLinks.forEach(link => {
-            link.classList.toggle('active', link.dataset.tab === tabId);
-        });
-    }
-
-    function showProgress() { progressBar?.classList.add('active'); }
-    function hideProgress() { progressBar?.classList.remove('active'); }
-
-    function reinitAlpine(el) {
-        if (typeof Alpine !== 'undefined' && Alpine.initTree) {
-            Alpine.initTree(el);
-        }
-    }
-
-    function fadeOut() {
-        if (!contentEl) return;
-        contentEl.style.opacity = '0.4';
-        contentEl.style.pointerEvents = 'none';
-    }
-
-    function fadeIn() {
-        if (!contentEl) return;
-        contentEl.style.opacity = '1';
-        contentEl.style.pointerEvents = '';
-    }
-
-    function reinitAlpine(el) {
-        if (typeof Alpine === 'undefined') return;
-        el.querySelectorAll('[x-data]').forEach(node => {
-            if (node._x_dataStack) { try { Alpine.destroyTree(node); } catch {} }
-        });
-        try { Alpine.initTree(el); } catch {}
-    }
-
-    function runPageScripts(fetchedDoc, injectEl) {
-        const seen = new Set();
-        const exec = (code) => { try { new Function(code)(); } catch(e) { console.error(e); } };
-        const SKIP_SIGS = ['initScrollReveal', '__adminSpaNavigate'];
-        const isSkip = (c) => SKIP_SIGS.some(s => c.includes(s));
-
-        injectEl.querySelectorAll('script:not([type="module"])').forEach(s => {
-            const c = s.textContent;
-            if (!c.trim() || seen.has(c) || isSkip(c)) return;
-            seen.add(c); exec(c);
-        });
-
-        if (fetchedDoc) {
-            fetchedDoc.body?.querySelectorAll('script:not([src]):not([type="module"])').forEach(s => {
-                const c = s.textContent;
-                if (!c.trim() || seen.has(c) || isSkip(c)) return;
-                seen.add(c); exec(c);
-            });
-        }
-    }
-
-    let currentTab = document.querySelector('.admin-nav-item[data-tab].active')?.dataset?.tab || 'overview';
-
-    async function switchTab(tabId, url) {
-        if (tabId === currentTab) return;
-        currentTab = tabId;
-        setActive(tabId);
-
-        // Serve from cache instantly
-        if (typeof cache[tabId] === 'string') {
-            window.history.pushState({ tab: tabId }, '', url);
-            contentEl.innerHTML = cache[tabId];
-            window.scrollTo({ top: 0 });
-            runPageScripts(null, contentEl);
-            reinitAlpine(contentEl);
-            if (window.initScrollReveal) requestAnimationFrame(() => window.initScrollReveal(contentEl));
-            return;
-        }
-
-        showProgress();
-        fadeOut();
-
-        try {
-            const res = await fetch(url, {
-                headers: { 'Accept': 'text/html', 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'same-origin',
-                redirect: 'follow'
-            });
-
-            if (res.url.includes('/login')) { window.location.href = res.url; return; }
-
-            const html = await res.text();
-            const doc = new DOMParser().parseFromString(html, 'text/html');
-
-            let newHtml = '';
-            const panel = doc.querySelector(`[data-panel-id="${tabId}"]`);
-            if (panel) {
-                newHtml = panel.outerHTML;
-            } else {
-                const pageContent = doc.getElementById('admin-page-content');
-                if (pageContent) {
-                    newHtml = pageContent.innerHTML;
-                } else {
-                    window.location.href = url;
-                    return;
-                }
-            }
-
-            cache[tabId] = newHtml;
-
-            contentEl.querySelectorAll('[x-data]').forEach(node => {
-                if (node._x_dataStack) { try { Alpine.destroyTree?.(node); } catch {} }
-            });
-
-            contentEl.innerHTML = newHtml;
-
-            const t = doc.querySelector('title')?.textContent;
-            if (t) document.title = t;
-            
-            window.history.pushState({ tab: tabId }, t || '', url);
-
-            window.scrollTo({ top: 0 });
-
-            runPageScripts(doc, contentEl);
-            reinitAlpine(contentEl);
-            if (window.initScrollReveal) requestAnimationFrame(() => window.initScrollReveal(contentEl));
-
-        } catch (err) {
-            console.error('[Admin SPA] Error:', err);
-            window.location.href = url;
-        } finally {
-            fadeIn();
-            hideProgress();
-        }
-    }
-
-    navLinks.forEach(link => {
-        link.addEventListener('click', function(e) {
-            if (this.getAttribute('target') === '_blank') return;
-            if (this.hasAttribute('data-no-spa')) return;
-            if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
-            e.preventDefault();
-            switchTab(this.dataset.tab, this.href);
-        });
-    });
-
-    window.__adminSpaNavigate = switchTab;
-    window.__adminSpaSetActive = setActive;
-
-    window.addEventListener('popstate', function(e) {
-        if (e.state && e.state.tab) {
-            switchTab(e.state.tab, window.location.href);
-        } else {
-            window.location.reload();
-        }
-    });
-})();
+    (function () {
+        const bar = document.getElementById('admin-sidebar');
+        const active = bar?.querySelector('.admin-nav-item.active');
+        if (active) bar.scrollTop = active.offsetTop - bar.offsetTop - bar.clientHeight / 2;
+    })();
 </script>
 
 @include('layouts.chatbot-widget')
