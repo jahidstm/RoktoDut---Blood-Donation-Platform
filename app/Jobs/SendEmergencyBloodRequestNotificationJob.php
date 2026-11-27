@@ -32,7 +32,7 @@ class SendEmergencyBloodRequestNotificationJob implements ShouldQueue
 
         $bloodRequest = BloodRequest::with(['district', 'upazila'])->find($this->bloodRequestId);
 
-        if (!$bloodRequest) {
+        if (!$bloodRequest || $bloodRequest->isClosed()) {
             return;
         }
 

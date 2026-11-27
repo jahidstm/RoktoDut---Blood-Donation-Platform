@@ -18,7 +18,7 @@ class BloodRequestPolicy
             return false;
         }
 
-        if (in_array($bloodRequest->status, ['fulfilled', 'expired'], true)) {
+        if ($bloodRequest->isClosed()) {
             return false;
         }
 
@@ -31,7 +31,7 @@ class BloodRequestPolicy
             return false;
         }
 
-        if (in_array($bloodRequest->status, ['fulfilled', 'expired'], true)) {
+        if ($bloodRequest->isClosed()) {
             return false;
         }
 

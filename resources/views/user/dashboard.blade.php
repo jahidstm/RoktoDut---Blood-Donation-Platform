@@ -315,7 +315,7 @@
                                 @if(strtolower($req->status) === 'fulfilled')
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800 uppercase">সম্পন্ন</span>
                                 @else
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-amber-100 text-amber-800 uppercase">{{ $req->status }}</span>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-extrabold uppercase {{ $req->status === 'cancelled' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-800' }}">{{ ['pending' => 'অপেক্ষমাণ', 'cancelled' => 'বাতিল', 'expired' => 'মেয়াদোত্তীর্ণ'][$req->status] ?? $req->status }}</span>
                                 @endif
                             </td>
                             <td class="px-6 py-4 text-right">

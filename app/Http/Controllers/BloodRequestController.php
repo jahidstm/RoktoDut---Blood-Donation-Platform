@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\DB;
+use App\Services\AuditLogger;
+use App\Notifications\BloodRequestCancelledNotification;
 use App\Enums\BloodComponentType;
 use App\Enums\UrgencyLevel;
 use App\Events\DonationCompleted;
@@ -359,8 +363,8 @@ class BloodRequestController extends Controller
     {
         Gate::authorize('markFulfilled', $bloodRequest);
 
-        if ($bloodRequest->status === 'fulfilled') {
-            return back()->with('error', 'এই রিকোয়েস্টটি ইতিমধ্যে সম্পন্ন করা হয়েছে।');
+        if ($bloodRequest->isClosed()) {
+            return back()->with('error', 'এই রিকোয়েস্টটি আগেই বন্ধ হয়ে গেছে।');
         }
 
         $bloodRequest->update(['status' => 'fulfilled']);
@@ -400,23 +404,71 @@ class BloodRequestController extends Controller
         return back()->with('success', '🎉 অভিনন্দন! রিকোয়েস্টটি সম্পন্ন মার্ক করা হয়েছে। যাঁরা রক্তদানের দাবি করেছেন তাঁরা পয়েন্ট পাবেন।');
     }
 
-    public function renew(Request $request, BloodRequest $bloodRequest)
+    /** Signed-in owner, or the guest holding the cookie issued when the request was posted. */
+    private function ownsRequest(Request $request, BloodRequest $bloodRequest): bool
     {
         $userId = $request->user()?->id;
         $guestToken = $request->cookie('rd_guest_token');
         $hasValidGuestToken = is_string($guestToken) && strlen($guestToken) >= 32 && strlen($guestToken) <= 64;
 
-        $ownsAsUser = $userId && ((int) $userId === (int) $bloodRequest->requested_by);
-        $ownsAsGuest = $hasValidGuestToken
-            && !empty($bloodRequest->guest_token)
-            && hash_equals((string) $bloodRequest->guest_token, (string) $guestToken);
+        return ($userId && (int) $userId === (int) $bloodRequest->requested_by)
+            || ($hasValidGuestToken
+                && ! empty($bloodRequest->guest_token)
+                && hash_equals((string) $bloodRequest->guest_token, (string) $guestToken));
+    }
 
-        if (! $ownsAsUser && ! $ownsAsGuest) {
+    public function cancel(Request $request, BloodRequest $bloodRequest)
+    {
+        abort_unless($this->ownsRequest($request, $bloodRequest), 403, 'এই রিকোয়েস্ট বাতিল করার অনুমতি আপনার নেই।');
+
+        $outcome = DB::transaction(function () use ($bloodRequest) {
+            $locked = BloodRequest::whereKey($bloodRequest->id)->lockForUpdate()->first();
+
+            if ($locked->isClosed()) {
+                return 'closed';
+            }
+
+            // A donor says they already gave blood: that has to be confirmed, not erased.
+            if ($locked->responses()->whereIn('verification_status', ['claimed', 'disputed', 'verified'])->exists()) {
+                return 'donated';
+            }
+
+            $locked->update(['status' => 'cancelled']);
+
+            return 'cancelled';
+        });
+
+        if ($outcome === 'closed') {
+            return back()->with('error', 'এই রিকোয়েস্টটি আগেই বন্ধ হয়ে গেছে।');
+        }
+
+        if ($outcome === 'donated') {
+            return back()->with('error', 'একজন ডোনার রক্ত দিয়েছেন বলে জানিয়েছেন। বাতিল না করে সেটি যাচাই করুন বা রিকোয়েস্টটি সম্পন্ন চিহ্নিত করুন।');
+        }
+
+        // Tell everyone who offered to help, so nobody keeps calling or travels for nothing.
+        $donors = $bloodRequest->responses()
+            ->whereIn('status', ['pending', 'accepted', 'contacted'])
+            ->with('user')
+            ->get()
+            ->pluck('user')
+            ->filter();
+
+        Notification::sendNow($donors, new BloodRequestCancelledNotification($bloodRequest));
+        AuditLogger::log('request.cancel', $bloodRequest, ['notified' => $donors->count()]);
+
+        return back()->with('success', 'রিকোয়েস্টটি বাতিল করা হয়েছে। যাঁরা সাড়া দিয়েছিলেন তাঁদের জানানো হয়েছে।');
+    }
+
+    public function renew(Request $request, BloodRequest $bloodRequest)
+    {
+        if (! $this->ownsRequest($request, $bloodRequest)) {
             abort(403, 'এই রিকোয়েস্ট রিনিউ করার অনুমতি আপনার নেই।');
         }
 
+        // A finished or cancelled request must not come back just because its date has passed.
         $isRenewable = $bloodRequest->status === 'expired'
-            || ($bloodRequest->needed_at && $bloodRequest->needed_at->lt(now()));
+            || (! $bloodRequest->isClosed() && $bloodRequest->needed_at && $bloodRequest->needed_at->lt(now()));
 
         if (! $isRenewable) {
             return back()->with('error', 'শুধুমাত্র এক্সপায়ারড বা সময় পেরিয়ে যাওয়া রিকোয়েস্ট রিনিউ করা যাবে।');

@@ -30,6 +30,7 @@ class DonationClaimController extends Controller
 
         // Only the donor the recipient accepted, and only once.
         abort_unless($response->status === 'accepted' && $response->verification_status === 'pending', 403);
+        abort_if($response->bloodRequest?->status === 'cancelled', 409, 'এই রিকোয়েস্টটি বাতিল করা হয়েছে।');
 
         $request->validate([
             'claim_method' => 'required|in:pin,image',

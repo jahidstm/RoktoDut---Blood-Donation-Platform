@@ -19,18 +19,6 @@
 
 @section('content')
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" data-panel-id="my-requests">
-    @if(session('success'))
-        <div class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800 font-bold">
-            {{ session('success') }}
-        </div>
-    @endif
-
-    @if(session('error'))
-        <div class="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 font-bold">
-            {{ session('error') }}
-        </div>
-    @endif
-
     <div class="flex items-start justify-between gap-4 mb-8 scroll-reveal" data-scroll-reveal>
         <div>
             <h1 class="text-2xl font-extrabold tracking-tight">আমার রিকোয়েস্ট</h1>
@@ -63,6 +51,7 @@
                         'in_progress' => ['label' => 'প্রক্রিয়াধীন', 'cls' => 'bg-indigo-100 text-indigo-800 border-indigo-200'],
                         'expired'     => ['label' => 'মেয়াদোত্তীর্ণ', 'cls' => 'bg-rose-100 text-rose-800 border-rose-200'],
                         'fulfilled'   => ['label' => 'সম্পন্ন', 'cls' => 'bg-emerald-100 text-emerald-800 border-emerald-200'],
+                        'cancelled'   => ['label' => 'বাতিল', 'cls' => 'bg-slate-100 text-slate-600 border-slate-200'],
                     ];
                     $statusInfo = $statusMap[$currentStatus] ?? ['label' => strtoupper((string) $req->status), 'cls' => 'bg-slate-100 text-slate-700 border-slate-200'];
                 @endphp
@@ -108,6 +97,15 @@
                            class="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50">
                             বিস্তারিত দেখুন
                         </a>
+
+                        @unless($req->isClosed())
+                            <form method="POST" action="{{ route('requests.cancel', $req->id) }}" onsubmit="return confirm('রিকোয়েস্টটি বাতিল করবেন? কেউ রক্ত দিয়ে থাকলে বাতিল না করে সম্পন্ন চিহ্নিত করুন।')">
+                                @csrf
+                                <button type="submit" class="inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-slate-500 transition hover:bg-rose-50 hover:text-rose-700">
+                                    রিকোয়েস্ট বাতিল করুন
+                                </button>
+                            </form>
+                        @endunless
                     </div>
 
                     @if($canRenew)

@@ -49,7 +49,7 @@ class SmartBloodRequestBroadcastJob implements ShouldQueue
         $responseRates ??= app(ResponseRateService::class);
 
         $bloodRequest = BloodRequest::with(['district', 'upazila', 'hospital'])->find($this->bloodRequestId);
-        if (!$bloodRequest) {
+        if (!$bloodRequest || $bloodRequest->isClosed()) {
             return;
         }
 

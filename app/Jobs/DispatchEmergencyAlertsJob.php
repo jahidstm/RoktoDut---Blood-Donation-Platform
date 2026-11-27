@@ -36,7 +36,7 @@ class DispatchEmergencyAlertsJob implements ShouldQueue
     public function handle(TelegramService $telegram): void
     {
         $bloodRequest = BloodRequest::with(['district', 'upazila', 'hospital'])->find($this->bloodRequestId);
-        if (!$bloodRequest) {
+        if (!$bloodRequest || $bloodRequest->isClosed()) {
             return;
         }
 

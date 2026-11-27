@@ -23,8 +23,11 @@
 
     $statusLabel = 'চলমান';
     $statusCls = 'bg-sky-50 text-sky-700 border-sky-200';
-    if ($status === 'expired') {
+    if ($status === 'cancelled') {
         $statusLabel = 'বাতিল';
+        $statusCls = 'bg-slate-100 text-slate-600 border-slate-200';
+    } elseif ($status === 'expired') {
+        $statusLabel = 'মেয়াদোত্তীর্ণ';
         $statusCls = 'bg-rose-50 text-rose-700 border-rose-200';
     } elseif ($verifiedCount > 0 || $status === 'fulfilled') {
         $statusLabel = 'সফল (ভেরিফাইড)';

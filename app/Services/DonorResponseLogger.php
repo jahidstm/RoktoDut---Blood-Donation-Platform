@@ -30,7 +30,7 @@ class DonorResponseLogger
     public const IGNORE_AFTER_HOURS = 24;
 
     /** Request statuses meaning someone else (or nobody) settled it. */
-    private const SETTLED_REQUEST_STATUSES = ['fulfilled', 'rejected'];
+    private const SETTLED_REQUEST_STATUSES = ['fulfilled', 'rejected', 'cancelled'];
 
     /**
      * Record a donor's answer to a request they were notified about.

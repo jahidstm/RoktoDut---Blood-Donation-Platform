@@ -229,6 +229,14 @@ class BloodRequest extends Model
 
     // --- Status Helpers ---
 
+    /** Nobody can respond to, fulfil or be alerted about a request in one of these states. */
+    public const CLOSED_STATUSES = ['fulfilled', 'expired', 'cancelled', 'rejected'];
+
+    public function isClosed(): bool
+    {
+        return in_array($this->status, self::CLOSED_STATUSES, true);
+    }
+
     public function isPending(): bool
     {
         return $this->status === 'pending';

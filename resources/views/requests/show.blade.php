@@ -142,7 +142,7 @@
                 </button>
             @endif
 
-            @if (Route::has('requests.fulfill') && $isOwner && strtolower($bloodRequest->status) !== 'fulfilled')
+            @if (Route::has('requests.fulfill') && $isOwner && ! $bloodRequest->isClosed())
                 <form method="POST" action="{{ route('requests.fulfill', $bloodRequest) }}">
                     @csrf
                     <button class="px-6 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black shadow-sm transition">
@@ -151,7 +151,16 @@
                 </form>
             @endif
 
-            @if (Route::has('requests.respond') && !$isOwner && strtolower($bloodRequest->status) !== 'fulfilled')
+            @if ($isOwner && ! $bloodRequest->isClosed())
+                <form method="POST" action="{{ route('requests.cancel', $bloodRequest) }}" onsubmit="return confirm('রিকোয়েস্টটি বাতিল করবেন? কেউ রক্ত দিয়ে থাকলে বাতিল না করে সম্পন্ন চিহ্নিত করুন।')">
+                    @csrf
+                    <button class="px-6 py-3 rounded-xl border border-slate-300 bg-white hover:border-rose-300 hover:text-rose-700 text-slate-600 font-black transition">
+                        রিকোয়েস্ট বাতিল করুন
+                    </button>
+                </form>
+            @endif
+
+            @if (Route::has('requests.respond') && !$isOwner && ! $bloodRequest->isClosed())
                 @if (!$myResponse)
                     @if(auth()->check() && auth()->user()->is_eligible_to_donate)
 
@@ -256,6 +265,12 @@
                 @endif
             @endif
             
+            @if($currentStatus === 'cancelled')
+                <div class="px-8 py-3 rounded-xl bg-slate-100 text-slate-700 font-black border border-slate-200">
+                    এই রিকোয়েস্টটি বাতিল করা হয়েছে
+                </div>
+            @endif
+
             @if(strtolower($bloodRequest->status) === 'fulfilled')
                 <div class="px-8 py-3 rounded-xl bg-emerald-100 text-emerald-800 font-black border border-emerald-200">
                     এই রিকোয়েস্টটি সম্পন্ন হয়েছে

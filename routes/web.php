@@ -241,6 +241,9 @@ Route::get('/my-request-responses', [BloodRequestController::class, 'myResponses
     ->name('requests.my-responses');
 Route::post('/requests/{bloodRequest}/renew', [BloodRequestController::class, 'renew'])
     ->name('requests.renew');
+Route::post('/requests/{bloodRequest}/cancel', [BloodRequestController::class, 'cancel'])
+    ->middleware('throttle:10,1')
+    ->name('requests.cancel');
 Route::get('/requests/{bloodRequest}', [BloodRequestController::class, 'show'])
     ->name('requests.show');
 

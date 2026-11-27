@@ -40,6 +40,10 @@ class BloodRequestResponseController extends Controller
             return back()->with('error', "মেডিকেল গাইডলাইন অনুযায়ী আপনি আগামী {$remainingDays} দিন রক্ত দিতে পারবেন না।");
         }
 
+        if ($request->status === 'pending' && $bloodRequest->isClosed()) {
+            return back()->with('error', 'এই রিকোয়েস্টটি আর খোলা নেই।');
+        }
+
         // ৩. নিজের রিকোয়েস্টে রেসপন্স করা যাবে না
         abort_if(
             $bloodRequest->requested_by === $user->id,
@@ -183,8 +187,8 @@ class BloodRequestResponseController extends Controller
                 ->first();
 
             // 2. Race Condition Check
-            if ($request->status === 'accepted' && $lockedRequest->status === 'fulfilled') {
-                abort(409, 'এই রিকোয়েস্টটি ইতিমধ্যে সম্পন্ন (fulfilled) হয়েছে।');
+            if ($request->status === 'accepted' && $lockedRequest->isClosed()) {
+                abort(409, 'এই রিকোয়েস্টটি আর খোলা নেই।');
             }
 
             $response->update([
