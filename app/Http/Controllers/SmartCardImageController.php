@@ -19,7 +19,7 @@ class SmartCardImageController extends Controller
     {
         $user = clone User::where('qr_token', $token)->firstOrFail();
         
-        $directory = storage_path('app/public/smart-cards/passes');
+        $directory = storage_path('app/private/smart-cards/passes');
         $imagePath = $directory . "/pass-{$user->id}.png";
 
         if (!File::exists($imagePath)) {
@@ -69,7 +69,7 @@ class SmartCardImageController extends Controller
 
             // 3. Generate QR Code and Overlay it
             $verifyUrl = route('public.verify', $user->qr_token);
-            $qrCodePath = storage_path("app/public/temp-qr-{$user->id}.png");
+            $qrCodePath = storage_path("app/private/temp-qr-{$user->id}.png");
             QrCode::format('png')->size(600)->margin(2)->generate($verifyUrl, $qrCodePath);
 
             $qrImage = $manager->read($qrCodePath);
@@ -98,7 +98,7 @@ class SmartCardImageController extends Controller
     {
         $user = clone User::where('qr_token', $token)->firstOrFail();
         
-        $directory = storage_path('app/public/smart-cards/og-images');
+        $directory = storage_path('app/private/smart-cards/og-images');
         $imagePath = $directory . "/og-{$user->id}.png";
 
         if (!File::exists($imagePath)) {

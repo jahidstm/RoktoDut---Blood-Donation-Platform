@@ -263,7 +263,7 @@
                  class="rounded-b-xl border border-slate-200 bg-slate-50 text-slate-900 font-medium text-base leading-relaxed"
                  style="min-height: 280px; max-height: 600px; overflow-y: auto;"
                  aria-label="পোস্টের মূল বিষয়বস্তু সম্পাদনা করুন">
-                {!! old('body_raw') !!}
+                {!! old('body_raw') ? app('purifier')->clean(old('body_raw')) : '' !!}
             </div>
 
             {{-- Hidden input that Quill syncs to --}}

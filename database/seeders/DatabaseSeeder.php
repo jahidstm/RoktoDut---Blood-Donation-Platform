@@ -18,6 +18,14 @@ class DatabaseSeeder extends Seeder
         $this->call([
             LocationSeeder::class,          // 📍 বিভাগ, জেলা, উপজেলা
             BadgeSeeder::class,             // 🏅 ব্যাজ ডেফিনিশন
+        ]);
+
+        // Everything below is demo data, including accounts with public passwords.
+        if (app()->isProduction()) {
+            return;
+        }
+
+        $this->call([
             DemoAdminSeeder::class,         // 🔑 admin@roktodut.test (role=admin)
             DemoDonorsSeeder::class,        // 👤 ৩০+ ডোনার + অর্গ অ্যাডমিন
             BlogSeeder::class,              // 📝 Health Blogs + Success Stories

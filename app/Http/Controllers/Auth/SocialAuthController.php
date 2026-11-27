@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Facades\Socialite;
@@ -42,6 +43,19 @@ class SocialAuthController extends Controller
                     'email_verified_at' => now(),
                 ]);
             } else {
+                // Nobody ever proved they own this address, but Google just did. Whoever set the
+                // password may be someone else, so that password and its sessions stop working.
+                if (!$user->email_verified_at) {
+                    $user->forceFill([
+                        'password'          => Hash::make(Str::random(40)),
+                        'remember_token'    => Str::random(60),
+                        'email_verified_at' => now(),
+                    ])->save();
+                    if (config('session.driver') === 'database') {
+                        DB::table(config('session.table', 'sessions'))->where('user_id', $user->id)->delete();
+                    }
+                }
+
                 // ৩. এক্সিস্টিং ইউজার যদি প্রথমবারের মতো গুগল দিয়ে লগইন করে
                 if (!$user->provider_id) {
                     $user->update([

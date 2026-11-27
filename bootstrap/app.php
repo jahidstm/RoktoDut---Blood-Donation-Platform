@@ -15,10 +15,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
+            'org.verified' => \App\Http\Middleware\EnsureOrganizationVerified::class,
             'internal.secret' => \App\Http\Middleware\VerifyInternalSecret::class,
         ]);
 
-        $middleware->trustProxies(at: '*');
+        // Which proxies to trust comes from TRUSTED_PROXIES (see AppServiceProvider). None by default,
+        // so a client cannot choose its own IP address with X-Forwarded-For.
+        $middleware->web(append: [\App\Http\Middleware\SecurityHeaders::class]);
 
         // 🤖 Telegram webhook CSRF থেকে বাদ রাখা (Telegram server থেকে POST আসে)
         $middleware->validateCsrfTokens(except: [
