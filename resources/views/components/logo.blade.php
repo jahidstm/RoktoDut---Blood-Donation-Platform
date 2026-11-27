@@ -11,8 +11,8 @@
         'xl'  => ['icon' => 'h-16 w-16', 'name' => 'text-2xl',   'sub' => 'text-xs',     'gap' => 'gap-4'],
         default => ['icon' => 'h-9 w-9 sm:h-10 sm:w-10', 'name' => 'text-base', 'sub' => 'text-[10px]', 'gap' => 'gap-2.5'],
     };
-    $nameColor = $inverted ? 'text-white'     : 'text-slate-900 dark:text-white';
-    $subColor  = $inverted ? 'text-slate-400' : 'text-slate-400 dark:text-slate-500';
+    $nameColor = $inverted ? 'text-white'     : 'text-slate-900';
+    $subColor  = $inverted ? 'text-slate-400' : 'text-slate-400';
 
     /* Unique gradient ID so multiple logos on the same page don't conflict */
     static $logoIdx = 0;
