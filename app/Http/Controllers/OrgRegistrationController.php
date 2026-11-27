@@ -105,8 +105,7 @@ class OrgRegistrationController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Org Registration Failed: ' . $e->getMessage());
-            // 🚀 ডিবাগিংয়ের জন্য আসল এরর মেসেজটি স্ক্রিনে দেখানো হচ্ছে
-            return back()->withInput()->with('error', 'সার্ভার এরর: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'রেজিস্ট্রেশন সম্পন্ন করা যায়নি। কিছুক্ষণ পর আবার চেষ্টা করুন।');
         }
     }
 }

@@ -118,6 +118,7 @@
             </div>
 
             <div class="js-reveal-container">
+                @auth
                 <button type="button"
                         data-reveal-start
                         class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-black text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-300">
@@ -127,6 +128,12 @@
                     </svg>
                     <span class="reveal-btn-text">নম্বর দেখুন</span>
                 </button>
+                @else
+                <a href="{{ route('login') }}"
+                   class="inline-flex h-10 w-full items-center justify-center rounded-lg bg-red-600 px-4 text-sm font-black text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-300">
+                    নম্বর দেখতে লগইন করুন
+                </a>
+                @endauth
             </div>
 
             <p class="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 js-inline-error break-words {{ $showInlineError ? '' : 'hidden' }}">

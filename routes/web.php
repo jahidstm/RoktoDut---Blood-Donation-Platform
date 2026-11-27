@@ -70,6 +70,7 @@ Route::get('/certificate/{token}',          [CertificateController::class, 'show
     ->name('certificate.show')
     ->middleware('throttle:60,1');
 Route::get('/certificate/{token}/preview',  [CertificateController::class, 'preview'])
+    ->middleware('throttle:30,1')
     ->name('certificate.preview');
 Route::get('/certificate/{token}/download', [CertificateController::class, 'download'])
     ->name('certificate.download')
@@ -181,8 +182,10 @@ Route::post('/chatbot/ask', [ChatbotController::class, 'ask'])
     ->name('chatbot.ask');
 
 Route::get('/search', [SearchController::class, 'index'])->name('search');
-Route::post('/donors/{donor}/reveal/start', [DonorRevealController::class, 'start'])->name('donors.reveal.start');
-Route::post('/donors/{donor}/reveal/verify', [DonorRevealController::class, 'verify'])->name('donors.reveal.verify');
+Route::middleware(['auth', 'throttle:30,1'])->group(function () {
+    Route::post('/donors/{donor}/reveal/start', [DonorRevealController::class, 'start'])->name('donors.reveal.start');
+    Route::post('/donors/{donor}/reveal/verify', [DonorRevealController::class, 'verify'])->name('donors.reveal.verify');
+});
 
 Route::get('/leaderboard', [LeaderboardController::class, 'index'])->name('leaderboard');
 
@@ -476,7 +479,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 });
 
 // --- ৬. অর্গানাইজেশন অ্যাডমিন রাউটস (ইন্টিগ্রেটেড গ্রুপ) ---
-Route::middleware(['auth', 'role:org_admin'])->group(function () {
+Route::middleware(['auth', 'role:org_admin', 'org.verified'])->group(function () {
     Route::get('/org/dashboard', [OrgDashboardController::class, 'index'])->name('org.dashboard');
     Route::get('/org/members', [OrgDashboardController::class, 'members'])->name('org.members.index');
     Route::patch('/org/members/{donor}/verify', [OrgDashboardController::class, 'updateVerificationStatus'])->name('org.members.verify');
@@ -529,7 +532,7 @@ Route::get('/api/hospitals/search', [HospitalController::class, 'search'])
     ->middleware('throttle:60,1');
 Route::post('/api/hospitals', [HospitalController::class, 'store'])
     ->name('hospitals.store')
-    ->middleware('throttle:3,1');
+    ->middleware('throttle:hospital-create');
 
 // --- অ্যাডমিন হসপিটাল ম্যানেজমেন্ট ---
 Route::middleware(['auth', 'role:admin'])->prefix('admin/hospitals')->name('admin.hospitals.')->group(function () {
@@ -544,5 +547,5 @@ require __DIR__ . '/auth.php';
 // Organization Registration Routes
 Route::middleware('guest')->group(function () {
     Route::get('/org/register', [OrgRegistrationController::class, 'create'])->name('org.register');
-    Route::post('/org/register', [OrgRegistrationController::class, 'store'])->name('org.store');
+    Route::post('/org/register', [OrgRegistrationController::class, 'store'])->middleware('throttle:5,60')->name('org.store');
 });

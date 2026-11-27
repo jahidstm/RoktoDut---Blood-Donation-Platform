@@ -462,6 +462,16 @@ class BloodRequestController extends Controller
      */
     public function show(Request $request, BloodRequest $bloodRequest)
     {
+        // Hidden (spam / under review): only whoever posted it, or an admin, may still open it.
+        if ($bloodRequest->is_hidden) {
+            $user = $request->user();
+            $guestToken = (string) $request->cookie('rd_guest_token');
+            $owns = ($user && (int) $user->id === (int) $bloodRequest->requested_by)
+                || ($bloodRequest->guest_token && hash_equals((string) $bloodRequest->guest_token, $guestToken));
+
+            abort_unless($owns || $user?->isAdmin(), 404);
+        }
+
         // 🚀 রিলেশনাল ডেটা লোড করা (JSON এরর ফিক্স করার জন্য)
         $bloodRequest->load([
             'requester:id,name',

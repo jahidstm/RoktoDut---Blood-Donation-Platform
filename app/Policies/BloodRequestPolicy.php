@@ -44,10 +44,7 @@ class BloodRequestPolicy
             return true;
         }
 
-        if (method_exists($user, 'hasRole') && ($user->hasRole('admin') || $user->hasRole('org_admin'))) {
-            return true;
-        }
-
-        return false;
+        // Organisation admins are deliberately not included: these are donors' phone numbers.
+        return $user->isAdmin();
     }
 }

@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 
 class DonorRevealController extends Controller
 {
@@ -58,6 +59,8 @@ class DonorRevealController extends Controller
         }
 
         $captchaQuestion = $mathCaptchaService->generate();
+        // The captcha is only good for the donor it was asked for.
+        $request->session()->put('reveal.donor_id', (int) $donor->id);
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -77,18 +80,19 @@ class DonorRevealController extends Controller
             return $this->deny($request, (int)$donor->id, 'এই ইউজার ডোনার না।', 404);
         }
 
+        // Checked here too: this is the step that returns the number.
+        if ($donor->hide_phone) {
+            return $this->deny($request, (int) $donor->id, '🛡️ এই ডোনার তাদের নম্বর গোপন রেখেছেন।');
+        }
+
         $request->validate([
             'captcha_answer' => ['required'],
         ], [
             'captcha_answer.required' => 'ক্যাপচা উত্তর দেওয়া বাধ্যতামূলক।',
         ]);
 
-        $ipHash = hash('sha256', implode('|', [
-            (string) $request->ip(),
-            (string) $request->userAgent(),
-            (string) $request->header('Accept-Language', ''),
-            (string) config('app.key'),
-        ]));
+        // Never build this from request headers: the client chooses those.
+        $ipHash = hash('sha256', $request->ip() . '|' . config('app.key'));
 
         $failedCaptchaBurst = DB::table('phone_reveal_attempts')
             ->where('ip_hash', $ipHash)
@@ -107,7 +111,9 @@ class DonorRevealController extends Controller
             return $this->deny($request, (int) $donor->id, 'বারবার ভুল যাচাইকরণ চেষ্টার কারণে এই ডিভাইসটি সাময়িকভাবে ব্লক করা হয়েছে। ৩০ মিনিট পরে আবার চেষ্টা করুন।', 429);
         }
 
-        if (!$mathCaptchaService->verify($request->input('captcha_answer'))) {
+        $captchaIsForThisDonor = (int) $request->session()->get('reveal.donor_id') === (int) $donor->id;
+
+        if (!$captchaIsForThisDonor || !$mathCaptchaService->verify($request->input('captcha_answer'))) {
             DB::table('phone_reveal_attempts')->insert([
                 'donor_id' => $donor->id,
                 'ip_hash' => $ipHash,
@@ -124,14 +130,16 @@ class DonorRevealController extends Controller
             ->where('created_at', '>=', Carbon::now()->subHour())
             ->count();
 
-        $successForDonorToday = DB::table('phone_reveal_attempts')
-            ->where('ip_hash', $ipHash)
-            ->where('donor_id', $donor->id)
-            ->where('status', 'success')
-            ->where('created_at', '>=', Carbon::now()->startOfDay())
-            ->count();
+        // Per account: 3 an hour, 10 a day, one view per donor per day. Per address: 10 an hour.
+        $userKey = 'reveal:user:' . $request->user()->id;
+        $limits = [
+            $userKey . ':hour' => [3, 3600],
+            $userKey . ':day' => [10, 86400],
+            $userKey . ':donor:' . $donor->id => [1, 86400],
+        ];
+        $overUserLimit = collect($limits)->contains(fn (array $l, string $key) => RateLimiter::tooManyAttempts($key, $l[0]));
 
-        if ($successThisHour >= 3 || $successForDonorToday >= 1) {
+        if ($overUserLimit || $successThisHour >= 10) {
             DB::table('phone_reveal_attempts')->insert([
                 'donor_id' => $donor->id,
                 'ip_hash' => $ipHash,
@@ -148,6 +156,11 @@ class DonorRevealController extends Controller
             'status' => 'success',
             'created_at' => now(),
         ]);
+
+        foreach ($limits as $key => [, $seconds]) {
+            RateLimiter::hit($key, $seconds);
+        }
+        $request->session()->forget('reveal.donor_id');
 
         if ($request->expectsJson()) {
             return response()->json([

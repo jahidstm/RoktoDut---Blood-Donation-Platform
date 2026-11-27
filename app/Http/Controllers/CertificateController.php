@@ -86,7 +86,7 @@ class CertificateController extends Controller
             ->with(['donor.district', 'bloodRequest'])
             ->firstOrFail();
 
-        $directory = storage_path('app/public/certificates');
+        $directory = storage_path('app/private/certificates');
         $imagePath = "{$directory}/cert-{$donation->id}.png";
 
         if (!File::exists($imagePath)) {
@@ -115,7 +115,7 @@ class CertificateController extends Controller
             ->with(['donor.district', 'bloodRequest'])
             ->firstOrFail();
 
-        $directory = storage_path('app/public/certificates');
+        $directory = storage_path('app/private/certificates');
         $imagePath = "{$directory}/cert-{$donation->id}.png";
 
         if (!File::exists($imagePath)) {

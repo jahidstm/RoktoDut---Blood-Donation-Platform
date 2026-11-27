@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\Post;
 use App\Models\Division;
 use Illuminate\Support\Facades\View;
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -105,8 +106,8 @@ class AppServiceProvider extends ServiceProvider
                     Limit::perHour(30)->by('requests-store:user-hour:' . $request->user()->id),
                 ]
                 : [
-                    Limit::perMinute(4)->by('requests-store:device:' . $fingerprint),
-                    Limit::perHour(12)->by('requests-store:device-hour:' . $fingerprint),
+                    Limit::perMinute(6)->by('requests-store:device:' . $fingerprint),
+                    Limit::perHour(20)->by('requests-store:device-hour:' . $fingerprint),
                 ];
 
             return collect($limits)->map(fn(Limit $limit) => $limit->response(function (Request $request) use ($message) {
@@ -144,6 +145,11 @@ class AppServiceProvider extends ServiceProvider
             ];
         });
 
+        RateLimiter::for('hospital-create', fn (Request $request) => [
+            Limit::perMinute(3)->by('hospital-create:' . $request->ip()),
+            Limit::perDay(20)->by('hospital-create-day:' . $request->ip()),
+        ]);
+
         RateLimiter::for('phone-reveal', function (Request $request) {
             if ($request->user() && $request->user()->isAdmin()) {
                 return Limit::none();
@@ -171,6 +177,10 @@ class AppServiceProvider extends ServiceProvider
                     }),
             ];
         });
+
+        if (filled(config('app.trusted_proxies'))) {
+            TrustProxies::at(array_map('trim', explode(',', (string) config('app.trusted_proxies'))));
+        }
 
         View::composer('layouts.admin-dashboard', function ($view) {
             $view->with([
@@ -204,17 +214,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $userId = (string) ($request->user()?->id ?? 'guest');
         $ip = (string) $request->ip();
-        $userAgent = (string) $request->userAgent();
-        $language = (string) $request->header('Accept-Language', '');
-        $deviceId = (string) $request->header('X-Device-Id', '');
 
-        return hash('sha256', implode('|', [
-            $userId,
-            $ip,
-            $userAgent,
-            $language,
-            $deviceId,
-            (string) config('app.key'),
-        ]));
+        // Only things the client cannot freely change. Headers would let it reset every limit.
+        return hash('sha256', implode('|', [$userId, $ip, (string) config('app.key')]));
     }
 }

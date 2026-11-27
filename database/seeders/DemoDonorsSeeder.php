@@ -20,6 +20,11 @@ class DemoDonorsSeeder extends Seeder
 {
     public function run(): void
     {
+        // These accounts have public passwords. First production admin: php artisan app:create-admin
+        if (app()->isProduction()) {
+            return;
+        }
+
         $upazilas = Upazila::with('district.division')->get();
 
         if ($upazilas->isEmpty()) {
@@ -59,6 +64,8 @@ class DemoDonorsSeeder extends Seeder
             [
                 'type'       => 'blood_bank',
                 'district'   => 'Dhaka',
+                'status'     => 'approved',
+                'is_verified' => true,
                 'admin_id'   => $orgAdmin->id,
             ]
         );

@@ -16,6 +16,11 @@ class DemoDonorSeeder extends Seeder
      */
     public function run(): void
     {
+        // These accounts have public passwords. First production admin: php artisan app:create-admin
+        if (app()->isProduction()) {
+            return;
+        }
+
         $service = app(GamificationService::class);
 
         // ────────────────────────────────────────────────

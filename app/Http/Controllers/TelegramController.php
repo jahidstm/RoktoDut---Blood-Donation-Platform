@@ -176,7 +176,7 @@ class TelegramController extends Controller
     // ─────────────────────────────────────────────────────────────
     public function setWebhook(Request $request): \Illuminate\Http\JsonResponse
     {
-        abort_unless(app()->environment('local') || $request->user()?->hasRole('admin'), 403);
+        abort_unless(app()->environment('local') || $request->user()?->isAdmin(), 403);
 
         $url    = route('telegram.webhook');
         $result = $this->telegram->setWebhook($url);
